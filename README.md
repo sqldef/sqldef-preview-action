@@ -1,1 +1,249 @@
-# sqldef-preview-action
+# SQLDef Preview Action
+
+A GitHub Action to preview database schema migrations using [sqldef](https://github.com/sqldef/sqldef) tools. This action runs `sqldef --dry-run` to show what database schema changes will be applied when your SQL schema files are modified, and comments the migration plan on your pull request.
+
+## Features
+
+- 🔍 **Preview Migrations**: See exactly what DDL statements will be executed
+- 🗃️ **Multi-Database Support**: Works with MySQL, PostgreSQL, SQLite3, and SQL Server
+- 💬 **PR Comments**: Automatically comments migration plans on pull requests
+- 🔄 **Idempotent**: Safe to run multiple times with consistent results
+- ⚙️ **Configurable**: Supports all sqldef configuration options
+
+## Supported Databases
+
+- **MySQL** (`mysqldef`)
+- **PostgreSQL** (`psqldef`) 
+- **SQLite3** (`sqlite3def`)
+- **SQL Server** (`mssqldef`)
+
+## Usage
+
+### Basic Example
+
+```yaml
+name: SQLDef Preview
+on:
+  pull_request:
+    paths:
+      - 'schema.sql'
+      - 'db/**/*.sql'
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: password
+          MYSQL_DATABASE: test_db
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Preview MySQL Schema Changes
+        uses: gfx/sqldef-preview-action@v1
+        with:
+          database-type: 'mysql'
+          schema-file: 'schema.sql'
+          mysql-host: '127.0.0.1'
+          mysql-port: '3306'
+          mysql-user: 'root'
+          mysql-password: 'password'
+          mysql-database: 'test_db'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+```
+
+### PostgreSQL Example
+
+```yaml
+- name: Preview PostgreSQL Schema Changes
+  uses: gfx/sqldef-preview-action@v1
+  with:
+    database-type: 'postgresql'
+    schema-file: 'db/schema.sql'
+    postgresql-host: '127.0.0.1'
+    postgresql-port: '5432'
+    postgresql-user: 'postgres'
+    postgresql-password: 'postgres'
+    postgresql-database: 'myapp_development'
+    enable-drop: 'true'
+    github-token: ${{ secrets.GITHUB_TOKEN }}
+```
+
+### SQLite3 Example
+
+```yaml
+- name: Preview SQLite3 Schema Changes
+  uses: gfx/sqldef-preview-action@v1
+  with:
+    database-type: 'sqlite3'
+    schema-file: 'schema.sql'
+    sqlite3-file: 'db/development.sqlite3'
+    github-token: ${{ secrets.GITHUB_TOKEN }}
+```
+
+### SQL Server Example
+
+```yaml
+- name: Preview SQL Server Schema Changes
+  uses: gfx/sqldef-preview-action@v1
+  with:
+    database-type: 'mssql'
+    schema-file: 'schema.sql'
+    mssql-host: '127.0.0.1'
+    mssql-port: '1433'
+    mssql-user: 'sa'
+    mssql-password: 'YourPassword123'
+    mssql-database: 'myapp'
+    github-token: ${{ secrets.GITHUB_TOKEN }}
+```
+
+## Inputs
+
+### Required
+
+| Input | Description |
+|-------|-------------|
+| `database-type` | Database type: `mysql`, `postgresql`, `sqlite3`, or `mssql` |
+| `schema-file` | Path to the schema file (default: `schema.sql`) |
+
+### Optional
+
+| Input | Description | Default |
+|-------|-------------|---------|
+| `base-branch` | Base branch to compare against | `main` |
+| `sqldef-version` | Version of sqldef to use | `v3.0.0` |
+| `enable-drop` | Enable destructive changes (DROP operations) | `false` |
+| `config-file` | Path to YAML configuration file | |
+| `github-token` | GitHub token for commenting on PR | `${{ github.token }}` |
+
+### MySQL Parameters
+
+| Input | Description | Default |
+|-------|-------------|---------|
+| `mysql-host` | MySQL host | `127.0.0.1` |
+| `mysql-port` | MySQL port | `3306` |
+| `mysql-user` | MySQL user | `root` |
+| `mysql-password` | MySQL password | |
+| `mysql-database` | MySQL database name | |
+
+### PostgreSQL Parameters
+
+| Input | Description | Default |
+|-------|-------------|---------|
+| `postgresql-host` | PostgreSQL host | `127.0.0.1` |
+| `postgresql-port` | PostgreSQL port | `5432` |
+| `postgresql-user` | PostgreSQL user | `postgres` |
+| `postgresql-password` | PostgreSQL password | |
+| `postgresql-database` | PostgreSQL database name | |
+
+### SQLite3 Parameters
+
+| Input | Description | Default |
+|-------|-------------|---------|
+| `sqlite3-file` | SQLite3 database file path | `database.sqlite3` |
+
+### SQL Server Parameters
+
+| Input | Description | Default |
+|-------|-------------|---------|
+| `mssql-host` | SQL Server host | `127.0.0.1` |
+| `mssql-port` | SQL Server port | `1433` |
+| `mssql-user` | SQL Server user | |
+| `mssql-password` | SQL Server password | |
+| `mssql-database` | SQL Server database name | |
+
+## Outputs
+
+| Output | Description |
+|--------|-------------|
+| `migration-plan` | The migration plan generated by `sqldef --dry-run` |
+| `has-changes` | Whether there are any schema changes (`true` or `false`) |
+
+## How It Works
+
+1. **Download sqldef**: Downloads the appropriate sqldef binary for your database type
+2. **Establish Baseline**: Checks out the base branch and applies the schema to establish the current state
+3. **Generate Preview**: Checks out the PR branch and runs `sqldef --dry-run` to generate the migration plan
+4. **Comment on PR**: Posts the migration plan as a comment on the pull request
+
+## Configuration File
+
+You can use a YAML configuration file for advanced sqldef options:
+
+```yaml
+# config.yml
+target_tables: |
+  users
+  posts_\d+
+skip_tables: |
+  temp_.*
+  migrations
+enable_drop: true
+```
+
+Then reference it in your action:
+
+```yaml
+- uses: gfx/sqldef-preview-action@v1
+  with:
+    database-type: 'mysql'
+    schema-file: 'schema.sql'
+    config-file: 'config.yml'
+    # ... other inputs
+```
+
+## Example Output
+
+When the action runs, it will comment on your PR with output like:
+
+```
+## 📋 SQLDef Preview - Migration Plan
+
+The following database schema changes will be applied:
+
+```sql
+-- dry run --
+ALTER TABLE users ADD COLUMN email VARCHAR(255);
+ALTER TABLE users ADD INDEX idx_email (email);
+CREATE TABLE posts (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  title VARCHAR(255),
+  content TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+```
+
+_Generated by [sqldef-preview-action](https://github.com/gfx/sqldef-preview-action)_
+```
+
+## Security Considerations
+
+- Database passwords should be stored as GitHub Secrets
+- The action requires write access to the repository to comment on PRs
+- Make sure your database is properly isolated for CI/CD environments
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## Credits
+
+This action is built on top of [sqldef](https://github.com/sqldef/sqldef), an excellent idempotent schema management tool by the sqldef team.

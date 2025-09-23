@@ -1,0 +1,320 @@
+const core = require('@actions/core');
+const github = require('@actions/github');
+const exec = require('@actions/exec');
+const tc = require('@actions/tool-cache');
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
+
+/**
+ * Download and extract sqldef binary for the specified database type
+ */
+async function downloadSqldef(databaseType, version) {
+  const platform = os.platform();
+  const arch = os.arch();
+  
+  // Map platform and architecture to sqldef naming convention
+  let osName, archName;
+  
+  if (platform === 'linux') {
+    osName = 'linux';
+  } else if (platform === 'darwin') {
+    osName = 'darwin';
+  } else if (platform === 'win32') {
+    osName = 'windows';
+  } else {
+    throw new Error(`Unsupported platform: ${platform}`);
+  }
+  
+  if (arch === 'x64') {
+    archName = 'amd64';
+  } else if (arch === 'arm64') {
+    archName = 'arm64';
+  } else if (arch === 'arm') {
+    archName = 'arm';
+  } else if (arch === 'ia32') {
+    archName = '386';
+  } else {
+    throw new Error(`Unsupported architecture: ${arch}`);
+  }
+  
+  // Map database type to binary name
+  const binaryMap = {
+    'mysql': 'mysqldef',
+    'postgresql': 'psqldef',
+    'sqlite3': 'sqlite3def',
+    'mssql': 'mssqldef'
+  };
+  
+  const binaryName = binaryMap[databaseType];
+  if (!binaryName) {
+    throw new Error(`Unsupported database type: ${databaseType}`);
+  }
+  
+  // Construct download URL
+  const extension = osName === 'windows' ? 'zip' : 'tar.gz';
+  const fileName = `${binaryName}_${osName}_${archName}.${extension}`;
+  const downloadUrl = `https://github.com/sqldef/sqldef/releases/download/${version}/${fileName}`;
+  
+  core.info(`Downloading ${binaryName} from ${downloadUrl}`);
+  
+  // Download and extract
+  const downloadPath = await tc.downloadTool(downloadUrl);
+  
+  let extractedPath;
+  if (extension === 'zip') {
+    extractedPath = await tc.extractZip(downloadPath);
+  } else {
+    extractedPath = await tc.extractTar(downloadPath, undefined, 'z');
+  }
+  
+  // Find the binary in the extracted directory
+  const binaryPath = path.join(extractedPath, binaryName + (osName === 'windows' ? '.exe' : ''));
+  
+  if (!fs.existsSync(binaryPath)) {
+    throw new Error(`Binary not found at ${binaryPath}`);
+  }
+  
+  // Make executable on Unix-like systems
+  if (osName !== 'windows') {
+    await exec.exec('chmod', ['+x', binaryPath]);
+  }
+  
+  return binaryPath;
+}
+
+/**
+ * Build sqldef command arguments based on database type and inputs
+ */
+function buildSqldefArgs(databaseType, inputs, options = {}) {
+  const args = [];
+  
+  // Database-specific connection parameters
+  switch (databaseType) {
+    case 'mysql':
+      if (inputs['mysql-host']) args.push('--host', inputs['mysql-host']);
+      if (inputs['mysql-port']) args.push('--port', inputs['mysql-port']);
+      if (inputs['mysql-user']) args.push('--user', inputs['mysql-user']);
+      if (inputs['mysql-password']) args.push('--password', inputs['mysql-password']);
+      if (inputs['mysql-database']) args.push(inputs['mysql-database']);
+      break;
+      
+    case 'postgresql':
+      if (inputs['postgresql-host']) args.push('--host', inputs['postgresql-host']);
+      if (inputs['postgresql-port']) args.push('--port', inputs['postgresql-port']);
+      if (inputs['postgresql-user']) args.push('--user', inputs['postgresql-user']);
+      if (inputs['postgresql-password']) args.push('--password', inputs['postgresql-password']);
+      if (inputs['postgresql-database']) args.push(inputs['postgresql-database']);
+      break;
+      
+    case 'sqlite3':
+      if (inputs['sqlite3-file']) args.push(inputs['sqlite3-file']);
+      break;
+      
+    case 'mssql':
+      if (inputs['mssql-host']) args.push('--host', inputs['mssql-host']);
+      if (inputs['mssql-port']) args.push('--port', inputs['mssql-port']);
+      if (inputs['mssql-user']) args.push('--user', inputs['mssql-user']);
+      if (inputs['mssql-password']) args.push('--password', inputs['mssql-password']);
+      if (inputs['mssql-database']) args.push(inputs['mssql-database']);
+      break;
+      
+    default:
+      throw new Error(`Unsupported database type: ${databaseType}`);
+  }
+  
+  // Common options
+  if (options.dryRun) {
+    args.push('--dry-run');
+  }
+  
+  if (inputs['enable-drop'] === 'true') {
+    args.push('--enable-drop');
+  }
+  
+  if (inputs['config-file']) {
+    args.push('--config', inputs['config-file']);
+  }
+  
+  // File input
+  if (inputs['schema-file']) {
+    args.push('--file', inputs['schema-file']);
+  }
+  
+  return args;
+}
+
+/**
+ * Run sqldef command and capture output
+ */
+async function runSqldef(binaryPath, args) {
+  let output = '';
+  let error = '';
+  
+  const options = {
+    listeners: {
+      stdout: (data) => {
+        output += data.toString();
+      },
+      stderr: (data) => {
+        error += data.toString();
+      }
+    },
+    silent: true,
+    ignoreReturnCode: true
+  };
+  
+  const exitCode = await exec.exec(binaryPath, args, options);
+  
+  return {
+    exitCode,
+    stdout: output,
+    stderr: error
+  };
+}
+
+/**
+ * Comment the migration plan on the PR
+ */
+async function commentOnPR(octokit, context, migrationPlan, hasChanges) {
+  if (!context.payload.pull_request) {
+    core.info('Not a pull request, skipping comment');
+    return;
+  }
+  
+  const { owner, repo } = context.repo;
+  const pull_number = context.payload.pull_request.number;
+  
+  let commentBody;
+  
+  if (!hasChanges) {
+    commentBody = `## 🟢 SQLDef Preview - No Changes
+
+No database schema changes detected.
+`;
+  } else {
+    commentBody = `## 📋 SQLDef Preview - Migration Plan
+
+The following database schema changes will be applied:
+
+\`\`\`sql
+${migrationPlan}
+\`\`\`
+
+_Generated by [sqldef-preview-action](https://github.com/gfx/sqldef-preview-action)_
+`;
+  }
+  
+  try {
+    await octokit.rest.issues.createComment({
+      owner,
+      repo,
+      issue_number: pull_number,
+      body: commentBody
+    });
+    
+    core.info('Successfully commented on PR');
+  } catch (err) {
+    core.warning(`Failed to comment on PR: ${err.message}`);
+  }
+}
+
+/**
+ * Main action logic
+ */
+async function run() {
+  try {
+    // Get inputs
+    const databaseType = core.getInput('database-type', { required: true });
+    const schemaFile = core.getInput('schema-file', { required: true });
+    const baseBranch = core.getInput('base-branch') || 'main';
+    const sqldefVersion = core.getInput('sqldef-version') || 'v3.0.0';
+    const githubToken = core.getInput('github-token');
+    
+    // Collect all inputs
+    const inputs = {};
+    const inputNames = [
+      'mysql-host', 'mysql-port', 'mysql-user', 'mysql-password', 'mysql-database',
+      'postgresql-host', 'postgresql-port', 'postgresql-user', 'postgresql-password', 'postgresql-database',
+      'sqlite3-file',
+      'mssql-host', 'mssql-port', 'mssql-user', 'mssql-password', 'mssql-database',
+      'enable-drop', 'config-file', 'schema-file'
+    ];
+    
+    for (const inputName of inputNames) {
+      inputs[inputName] = core.getInput(inputName);
+    }
+    
+    core.info(`Database type: ${databaseType}`);
+    core.info(`Schema file: ${schemaFile}`);
+    
+    // Check if schema file exists
+    if (!fs.existsSync(schemaFile)) {
+      throw new Error(`Schema file not found: ${schemaFile}`);
+    }
+    
+    // Download sqldef binary
+    const binaryPath = await downloadSqldef(databaseType, sqldefVersion);
+    core.info(`Downloaded sqldef binary to: ${binaryPath}`);
+    
+    // Store current branch
+    const currentBranch = process.env.GITHUB_HEAD_REF || process.env.GITHUB_REF_NAME;
+    core.info(`Current branch: ${currentBranch}`);
+    
+    // Checkout base branch to establish baseline
+    core.info(`Checking out base branch: ${baseBranch}`);
+    await exec.exec('git', ['fetch', 'origin', baseBranch]);
+    await exec.exec('git', ['checkout', baseBranch]);
+    
+    // Apply schema to base branch (establish baseline state)
+    core.info('Applying schema to base branch to establish baseline state');
+    const baseArgs = buildSqldefArgs(databaseType, inputs);
+    const baseResult = await runSqldef(binaryPath, baseArgs);
+    
+    if (baseResult.exitCode !== 0) {
+      core.warning(`Failed to apply base schema: ${baseResult.stderr}`);
+      // Continue anyway - the database might not exist yet
+    }
+    
+    // Checkout back to the PR branch
+    core.info(`Checking out PR branch: ${currentBranch}`);
+    await exec.exec('git', ['checkout', currentBranch]);
+    
+    // Run dry-run to preview changes
+    core.info('Running sqldef --dry-run to preview changes');
+    const dryRunArgs = buildSqldefArgs(databaseType, inputs, { dryRun: true });
+    const dryRunResult = await runSqldef(binaryPath, dryRunArgs);
+    
+    if (dryRunResult.exitCode !== 0) {
+      throw new Error(`sqldef --dry-run failed: ${dryRunResult.stderr}`);
+    }
+    
+    const migrationPlan = dryRunResult.stdout.trim();
+    const hasChanges = migrationPlan.length > 0 && !migrationPlan.includes('Nothing is modified');
+    
+    core.info(`Migration plan: ${migrationPlan}`);
+    core.info(`Has changes: ${hasChanges}`);
+    
+    // Set outputs
+    core.setOutput('migration-plan', migrationPlan);
+    core.setOutput('has-changes', hasChanges.toString());
+    
+    // Comment on PR if GitHub token is provided
+    if (githubToken && github.context.payload.pull_request) {
+      const octokit = github.getOctokit(githubToken);
+      await commentOnPR(octokit, github.context, migrationPlan, hasChanges);
+    }
+    
+    core.info('SQLDef preview completed successfully');
+    
+  } catch (error) {
+    core.setFailed(`Action failed: ${error.message}`);
+  }
+}
+
+// Run the action
+if (require.main === module) {
+  run();
+}
+
+module.exports = { run, downloadSqldef, buildSqldefArgs };

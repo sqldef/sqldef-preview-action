@@ -1,0 +1,91 @@
+name: Example SQLDef Preview
+
+on:
+  pull_request:
+    paths:
+      - 'examples/**/*.sql'
+
+jobs:
+  mysql-preview:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: password
+          MYSQL_DATABASE: test_db
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Preview MySQL Schema Changes
+        uses: ./
+        with:
+          database-type: 'mysql'
+          schema-file: 'examples/mysql/schema.sql'
+          mysql-host: '127.0.0.1'
+          mysql-port: '3306'
+          mysql-user: 'root'
+          mysql-password: 'password'
+          mysql-database: 'test_db'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  postgresql-preview:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Preview PostgreSQL Schema Changes
+        uses: ./
+        with:
+          database-type: 'postgresql'
+          schema-file: 'examples/postgresql/schema.sql'
+          postgresql-host: '127.0.0.1'
+          postgresql-port: '5432'
+          postgresql-user: 'postgres'
+          postgresql-password: 'postgres'
+          postgresql-database: 'test_db'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  sqlite-preview:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create SQLite database directory
+        run: mkdir -p db
+
+      - name: Preview SQLite3 Schema Changes
+        uses: ./
+        with:
+          database-type: 'sqlite3'
+          schema-file: 'examples/sqlite3/schema.sql'
+          sqlite3-file: 'db/test.sqlite3'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
