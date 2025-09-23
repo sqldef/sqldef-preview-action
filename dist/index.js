@@ -32711,6 +32711,12 @@ async function run() {
     const sqldefVersion = core.getInput('sqldef-version') || 'v3.0.0';
     const githubToken = core.getInput('github-token');
     
+    // Validate database type
+    const supportedTypes = ['mysql', 'postgresql', 'sqlite3', 'mssql'];
+    if (!supportedTypes.includes(databaseType)) {
+      throw new Error(`Unsupported database type: ${databaseType}. Supported types: ${supportedTypes.join(', ')}`);
+    }
+    
     // Collect all inputs
     const inputs = {};
     const inputNames = [
@@ -32734,6 +32740,7 @@ async function run() {
     }
     
     // Download sqldef binary
+    core.info('Downloading sqldef binary...');
     const binaryPath = await downloadSqldef(databaseType, sqldefVersion);
     core.info(`Downloaded sqldef binary to: ${binaryPath}`);
     
@@ -32741,24 +32748,36 @@ async function run() {
     const currentBranch = process.env.GITHUB_HEAD_REF || process.env.GITHUB_REF_NAME;
     core.info(`Current branch: ${currentBranch}`);
     
-    // Checkout base branch to establish baseline
-    core.info(`Checking out base branch: ${baseBranch}`);
-    await exec.exec('git', ['fetch', 'origin', baseBranch]);
-    await exec.exec('git', ['checkout', baseBranch]);
-    
-    // Apply schema to base branch (establish baseline state)
-    core.info('Applying schema to base branch to establish baseline state');
-    const baseArgs = buildSqldefArgs(databaseType, inputs);
-    const baseResult = await runSqldef(binaryPath, baseArgs);
-    
-    if (baseResult.exitCode !== 0) {
-      core.warning(`Failed to apply base schema: ${baseResult.stderr}`);
-      // Continue anyway - the database might not exist yet
+    // Only checkout base branch if we're not already on it
+    if (currentBranch !== baseBranch) {
+      // Checkout base branch to establish baseline
+      core.info(`Checking out base branch: ${baseBranch}`);
+      try {
+        await exec.exec('git', ['fetch', 'origin', baseBranch]);
+        await exec.exec('git', ['checkout', baseBranch]);
+        
+        // Apply schema to base branch (establish baseline state)
+        core.info('Applying schema to base branch to establish baseline state');
+        const baseArgs = buildSqldefArgs(databaseType, inputs);
+        const baseResult = await runSqldef(binaryPath, baseArgs);
+        
+        if (baseResult.exitCode !== 0) {
+          core.warning(`Failed to apply base schema: ${baseResult.stderr}`);
+          core.warning('This might be expected if the database doesn\'t exist yet or is empty');
+        } else {
+          core.info('Successfully applied base schema');
+        }
+        
+        // Checkout back to the PR branch
+        core.info(`Checking out PR branch: ${currentBranch}`);
+        await exec.exec('git', ['checkout', currentBranch]);
+      } catch (gitError) {
+        core.warning(`Git operations failed: ${gitError.message}`);
+        core.info('Continuing with migration preview on current branch');
+      }
+    } else {
+      core.info('Already on base branch, skipping baseline setup');
     }
-    
-    // Checkout back to the PR branch
-    core.info(`Checking out PR branch: ${currentBranch}`);
-    await exec.exec('git', ['checkout', currentBranch]);
     
     // Run dry-run to preview changes
     core.info('Running sqldef --dry-run to preview changes');
@@ -32766,14 +32785,24 @@ async function run() {
     const dryRunResult = await runSqldef(binaryPath, dryRunArgs);
     
     if (dryRunResult.exitCode !== 0) {
-      throw new Error(`sqldef --dry-run failed: ${dryRunResult.stderr}`);
+      // Log the full error for debugging but still try to extract useful info
+      core.error(`sqldef --dry-run failed with exit code ${dryRunResult.exitCode}`);
+      core.error(`stderr: ${dryRunResult.stderr}`);
+      core.error(`stdout: ${dryRunResult.stdout}`);
+      throw new Error(`sqldef --dry-run failed: ${dryRunResult.stderr || 'Unknown error'}`);
     }
     
     const migrationPlan = dryRunResult.stdout.trim();
-    const hasChanges = migrationPlan.length > 0 && !migrationPlan.includes('Nothing is modified');
+    const hasChanges = migrationPlan.length > 0 && 
+                      !migrationPlan.includes('Nothing is modified') &&
+                      !migrationPlan.includes('-- Nothing to apply --');
     
-    core.info(`Migration plan: ${migrationPlan}`);
     core.info(`Has changes: ${hasChanges}`);
+    if (hasChanges) {
+      core.info(`Migration plan preview:\n${migrationPlan}`);
+    } else {
+      core.info('No schema changes detected');
+    }
     
     // Set outputs
     core.setOutput('migration-plan', migrationPlan);
@@ -32783,12 +32812,17 @@ async function run() {
     if (githubToken && github.context.payload.pull_request) {
       const octokit = github.getOctokit(githubToken);
       await commentOnPR(octokit, github.context, migrationPlan, hasChanges);
+    } else if (!github.context.payload.pull_request) {
+      core.info('Not running in a pull request context, skipping PR comment');
+    } else if (!githubToken) {
+      core.info('No GitHub token provided, skipping PR comment');
     }
     
     core.info('SQLDef preview completed successfully');
     
   } catch (error) {
     core.setFailed(`Action failed: ${error.message}`);
+    core.error(`Full error: ${error.stack}`);
   }
 }
 

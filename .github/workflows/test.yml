@@ -1,0 +1,126 @@
+name: Test SQLDef Preview Action
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build action
+        run: npm run build
+
+      - name: Check if dist/ is up to date
+        run: |
+          if [ "$(git diff --ignore-space-at-eol dist/ | wc -l)" -gt "0" ]; then
+            echo "Detected uncommitted changes after build. See status below:"
+            git diff
+            exit 1
+          fi
+
+  test-action-sqlite:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create test database directory
+        run: mkdir -p db
+
+      - name: Test SQLite3 Action
+        uses: ./
+        with:
+          database-type: 'sqlite3'
+          schema-file: 'examples/sqlite3/schema.sql'
+          sqlite3-file: 'db/test.sqlite3'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  # Only run database tests on pull requests to avoid hitting API limits
+  test-action-mysql:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: password
+          MYSQL_DATABASE: test_db
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Test MySQL Action
+        uses: ./
+        with:
+          database-type: 'mysql'
+          schema-file: 'examples/mysql/schema.sql'
+          mysql-host: '127.0.0.1'
+          mysql-port: '3306'
+          mysql-user: 'root'
+          mysql-password: 'password'
+          mysql-database: 'test_db'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  test-action-postgresql:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Test PostgreSQL Action
+        uses: ./
+        with:
+          database-type: 'postgresql'
+          schema-file: 'examples/postgresql/schema.sql'
+          postgresql-host: '127.0.0.1'
+          postgresql-port: '5432'
+          postgresql-user: 'postgres'
+          postgresql-password: 'postgres'
+          postgresql-database: 'test_db'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
