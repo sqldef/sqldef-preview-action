@@ -33,7 +33,7 @@ jobs:
           node-version: '20'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Build action
         run: npm run build
@@ -48,7 +48,7 @@ jobs:
           mysql-user: 'root'
           mysql-password: 'password'
           mysql-database: 'test_db'
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ github.token }}
 
   postgresql-preview:
     runs-on: ubuntu-latest
@@ -77,7 +77,7 @@ jobs:
           node-version: '20'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Build action
         run: npm run build
@@ -92,7 +92,7 @@ jobs:
           postgresql-user: 'postgres'
           postgresql-password: 'postgres'
           postgresql-database: 'test_db'
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ github.token }}
 
   sqlite-preview:
     runs-on: ubuntu-latest
@@ -107,7 +107,7 @@ jobs:
           node-version: '20'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Build action
         run: npm run build
@@ -121,4 +121,4 @@ jobs:
           database-type: 'sqlite3'
           schema-file: 'examples/sqlite3/schema.sql'
           sqlite3-file: 'db/test.sqlite3'
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ github.token }}

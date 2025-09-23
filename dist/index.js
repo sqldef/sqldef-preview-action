@@ -32733,6 +32733,9 @@ async function run() {
     
     core.info(`Database type: ${databaseType}`);
     core.info(`Schema file: ${schemaFile}`);
+    core.info(`Base branch: ${baseBranch}`);
+    core.info(`SQLDef version: ${sqldefVersion}`);
+    core.info(`Platform: ${process.platform}, Architecture: ${process.arch}`);
     
     // Check if schema file exists
     if (!fs.existsSync(schemaFile)) {
@@ -32741,8 +32744,13 @@ async function run() {
     
     // Download sqldef binary
     core.info('Downloading sqldef binary...');
-    const binaryPath = await downloadSqldef(databaseType, sqldefVersion);
-    core.info(`Downloaded sqldef binary to: ${binaryPath}`);
+    let binaryPath;
+    try {
+      binaryPath = await downloadSqldef(databaseType, sqldefVersion);
+      core.info(`Downloaded sqldef binary to: ${binaryPath}`);
+    } catch (downloadError) {
+      throw new Error(`Failed to download sqldef binary: ${downloadError.message}. Please check if the specified version (${sqldefVersion}) is available for your platform.`);
+    }
     
     // Store current branch - handle different GitHub Actions contexts
     let currentBranch = process.env.GITHUB_HEAD_REF; // For pull requests
@@ -32763,6 +32771,7 @@ async function run() {
     core.info(`Current branch: ${currentBranch}`);
     
     // Only checkout base branch if we're not already on it and it exists
+    let baselineApplied = false;
     if (currentBranch !== baseBranch) {
       core.info(`Checking out base branch: ${baseBranch}`);
       try {
@@ -32783,6 +32792,7 @@ async function run() {
             core.warning('This might be expected if the database doesn\'t exist yet or is empty');
           } else {
             core.info('Successfully applied base schema');
+            baselineApplied = true;
           }
           
           // Checkout back to the PR branch
@@ -32798,6 +32808,21 @@ async function run() {
       }
     } else {
       core.info('Already on base branch, skipping baseline setup');
+      // If we're on the base branch, try to apply the schema as baseline
+      try {
+        core.info('Applying current schema as baseline since we are on the base branch');
+        const baseArgs = buildSqldefArgs(databaseType, inputs);
+        const baseResult = await runSqldef(binaryPath, baseArgs);
+        
+        if (baseResult.exitCode !== 0) {
+          core.warning(`Failed to apply current schema as baseline: ${baseResult.stderr}`);
+        } else {
+          core.info('Successfully applied current schema as baseline');
+          baselineApplied = true;
+        }
+      } catch (baselineError) {
+        core.warning(`Failed to establish baseline: ${baselineError.message}`);
+      }
     }
     
     // Run dry-run to preview changes

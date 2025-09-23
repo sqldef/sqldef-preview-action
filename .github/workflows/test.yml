@@ -2,7 +2,7 @@ name: Test SQLDef Preview Action
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, 'copilot/**' ]
   pull_request:
     branches: [ main ]
 
@@ -21,7 +21,7 @@ jobs:
           node-version: '20'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Run tests
         run: npm test
@@ -51,7 +51,7 @@ jobs:
           node-version: '20'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Build action
         run: npm run build
@@ -65,7 +65,7 @@ jobs:
           database-type: 'sqlite3'
           schema-file: 'examples/sqlite3/schema.sql'
           sqlite3-file: 'db/test.sqlite3'
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ github.token }}
 
   # Only run database tests on pull requests to avoid hitting API limits
   test-action-mysql:
@@ -96,7 +96,7 @@ jobs:
           node-version: '20'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Build action
         run: npm run build
@@ -111,7 +111,7 @@ jobs:
           mysql-user: 'root'
           mysql-password: 'password'
           mysql-database: 'test_db'
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ github.token }}
 
   test-action-postgresql:
     if: github.event_name == 'pull_request'
@@ -141,7 +141,7 @@ jobs:
           node-version: '20'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Build action
         run: npm run build
@@ -156,4 +156,4 @@ jobs:
           postgresql-user: 'postgres'
           postgresql-password: 'postgres'
           postgresql-database: 'test_db'
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ github.token }}
