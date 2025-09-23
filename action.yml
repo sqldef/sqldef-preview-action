@@ -1,0 +1,88 @@
+name: 'SQLDef Preview'
+description: 'Preview schema changes using sqldef in pull requests'
+author: 'The sqldef team'
+branding:
+  icon: 'database'
+  color: 'blue'
+inputs:
+  command:
+    description: 'SQLDef command to use (psqldef | mysqldef | sqlite3def | mssqldef)'
+    required: true
+  schema-file:
+    description: 'Path to the schema file'
+    required: true
+  version:
+    description: 'Version of sqldef to use'
+    required: false
+    default: 'v3.0.0'
+  config-file:
+    description: 'Path to sqldef config file'
+    required: false
+  # PostgreSQL parameters
+  pg-user:
+    description: 'PostgreSQL user'
+    required: false
+  pg-password:
+    description: 'PostgreSQL password'
+    required: false
+  pg-host:
+    description: 'PostgreSQL host'
+    required: false
+    default: 'localhost'
+  pg-port:
+    description: 'PostgreSQL port'
+    required: false
+    default: '5432'
+  pg-database:
+    description: 'PostgreSQL database'
+    required: false
+  # MySQL parameters
+  mysql-user:
+    description: 'MySQL user'
+    required: false
+  mysql-password:
+    description: 'MySQL password'
+    required: false
+  mysql-host:
+    description: 'MySQL host'
+    required: false
+    default: 'localhost'
+  mysql-port:
+    description: 'MySQL port'
+    required: false
+    default: '3306'
+  mysql-database:
+    description: 'MySQL database'
+    required: false
+  # SQLite parameters
+  sqlite-database:
+    description: 'SQLite database file'
+    required: false
+  # SQL Server parameters
+  mssql-user:
+    description: 'SQL Server user'
+    required: false
+  mssql-password:
+    description: 'SQL Server password'
+    required: false
+  mssql-host:
+    description: 'SQL Server host'
+    required: false
+    default: 'localhost'
+  mssql-port:
+    description: 'SQL Server port'
+    required: false
+    default: '1433'
+  mssql-database:
+    description: 'SQL Server database'
+    required: false
+
+  # GitHub token for PR comments
+  github-token:
+    description: 'GitHub token for commenting on pull requests'
+    required: false
+    default: ${{ github.token }}
+
+runs:
+  using: 'node24'
+  main: 'dist/index.js'

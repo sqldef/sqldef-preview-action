@@ -29,3 +29,7 @@ This action is triggered by a pull request.
 - `mssql-*`: the connection parameters for Microsoft SQL Server
 - `schema-file`: the path to the schema file
 - `config-file`: the path to the config file of sqldef
+
+## How to use commands
+
+* `psqldef`

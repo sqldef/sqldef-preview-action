@@ -1,0 +1,144 @@
+name: SQLDef Preview Example
+
+on:
+  pull_request:
+    paths:
+      - 'schema.sql'
+
+jobs:
+  postgresql-preview:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: testdb
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Preview PostgreSQL schema changes
+        uses: gfx/sqldef-preview-action@main
+        with:
+          command: psqldef
+          sqldef-version: v0.17.24
+          schema-file: schema.sql
+          pg-user: postgres
+          pg-password: postgres
+          pg-host: localhost
+          pg-port: 5432
+          pg-database: testdb
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  mysql-preview:
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: testdb
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+        ports:
+          - 3306:3306
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Preview MySQL schema changes
+        uses: gfx/sqldef-preview-action@main
+        with:
+          command: mysqldef
+          sqldef-version: v0.17.24
+          schema-file: schema.sql
+          mysql-user: root
+          mysql-password: root
+          mysql-host: localhost
+          mysql-port: 3306
+          mysql-database: testdb
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  sqlite-preview:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Preview SQLite schema changes
+        uses: gfx/sqldef-preview-action@main
+        with:
+          command: sqlite3def
+          sqldef-version: v0.17.24
+          schema-file: schema.sql
+          sqlite-database: test.db
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  mssql-preview:
+    runs-on: ubuntu-latest
+
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: Y
+          SA_PASSWORD: YourStrong@Passw0rd
+          MSSQL_PID: Developer
+        options: >-
+          --health-cmd "/opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P 'YourStrong@Passw0rd' -Q 'SELECT 1'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+        ports:
+          - 1433:1433
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Wait for SQL Server
+        run: |
+          for i in {1..30}; do
+            /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P 'YourStrong@Passw0rd' -Q 'SELECT 1' && break
+            echo "Waiting for SQL Server..."
+            sleep 2
+          done
+          /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P 'YourStrong@Passw0rd' -Q "CREATE DATABASE testdb"
+
+      - name: Preview MSSQL schema changes
+        uses: gfx/sqldef-preview-action@main
+        with:
+          command: mssqldef
+          sqldef-version: v0.17.24
+          schema-file: schema.sql
+          mssql-user: sa
+          mssql-password: YourStrong@Passw0rd
+          mssql-host: localhost
+          mssql-port: 1433
+          mssql-database: testdb
+          github-token: ${{ secrets.GITHUB_TOKEN }}
