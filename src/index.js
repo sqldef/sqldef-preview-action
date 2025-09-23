@@ -1,6 +1,6 @@
 const core = require('@actions/core');
 const github = require('@actions/github');
-const exec = require('@actions/exec');
+const { exec, getExecOutput } = require('@actions/exec');
 const tc = require('@actions/tool-cache');
 const fs = require('fs');
 const path = require('path');
@@ -77,7 +77,7 @@ async function downloadSqldef(databaseType, version) {
   
   // Make executable on Unix-like systems
   if (osName !== 'windows') {
-    await exec.exec('chmod', ['+x', binaryPath]);
+    await exec('chmod', ['+x', binaryPath]);
   }
   
   return binaryPath;
@@ -164,7 +164,7 @@ async function runSqldef(binaryPath, args) {
     ignoreReturnCode: true
   };
   
-  const exitCode = await exec.exec(binaryPath, args, options);
+  const exitCode = await exec(binaryPath, args, options);
   
   return {
     exitCode,
@@ -229,7 +229,7 @@ async function run() {
     const schemaFile = core.getInput('schema-file', { required: true });
     const baseBranch = core.getInput('base-branch') || 'main';
     const sqldefVersion = core.getInput('sqldef-version') || 'v3.0.0';
-    const githubToken = core.getInput('github-token');
+    const githubToken = core.getInput('github-token') || process.env.GITHUB_TOKEN;
     
     // Validate database type
     const supportedTypes = ['mysql', 'postgresql', 'sqlite3', 'mssql'];
@@ -264,36 +264,57 @@ async function run() {
     const binaryPath = await downloadSqldef(databaseType, sqldefVersion);
     core.info(`Downloaded sqldef binary to: ${binaryPath}`);
     
-    // Store current branch
-    const currentBranch = process.env.GITHUB_HEAD_REF || process.env.GITHUB_REF_NAME;
+    // Store current branch - handle different GitHub Actions contexts
+    let currentBranch = process.env.GITHUB_HEAD_REF; // For pull requests
+    if (!currentBranch) {
+      currentBranch = process.env.GITHUB_REF_NAME; // For push events
+    }
+    if (!currentBranch) {
+      // Fallback: get current branch from git
+      try {
+        const { stdout } = await getExecOutput('git', ['branch', '--show-current']);
+        currentBranch = stdout.trim();
+      } catch (err) {
+        core.warning(`Could not determine current branch: ${err.message}`);
+        currentBranch = 'HEAD';
+      }
+    }
+    
     core.info(`Current branch: ${currentBranch}`);
     
-    // Only checkout base branch if we're not already on it
+    // Only checkout base branch if we're not already on it and it exists
     if (currentBranch !== baseBranch) {
-      // Checkout base branch to establish baseline
       core.info(`Checking out base branch: ${baseBranch}`);
       try {
-        await exec.exec('git', ['fetch', 'origin', baseBranch]);
-        await exec.exec('git', ['checkout', baseBranch]);
+        // Check if base branch exists remotely
+        await exec('git', ['fetch', 'origin', baseBranch]);
         
-        // Apply schema to base branch (establish baseline state)
-        core.info('Applying schema to base branch to establish baseline state');
-        const baseArgs = buildSqldefArgs(databaseType, inputs);
-        const baseResult = await runSqldef(binaryPath, baseArgs);
-        
-        if (baseResult.exitCode !== 0) {
-          core.warning(`Failed to apply base schema: ${baseResult.stderr}`);
-          core.warning('This might be expected if the database doesn\'t exist yet or is empty');
-        } else {
-          core.info('Successfully applied base schema');
+        // Try to checkout the base branch
+        try {
+          await exec('git', ['checkout', baseBranch]);
+          
+          // Apply schema to base branch (establish baseline state)
+          core.info('Applying schema to base branch to establish baseline state');
+          const baseArgs = buildSqldefArgs(databaseType, inputs);
+          const baseResult = await runSqldef(binaryPath, baseArgs);
+          
+          if (baseResult.exitCode !== 0) {
+            core.warning(`Failed to apply base schema: ${baseResult.stderr}`);
+            core.warning('This might be expected if the database doesn\'t exist yet or is empty');
+          } else {
+            core.info('Successfully applied base schema');
+          }
+          
+          // Checkout back to the PR branch
+          core.info(`Checking out back to branch: ${currentBranch}`);
+          await exec('git', ['checkout', currentBranch]);
+        } catch (checkoutError) {
+          core.warning(`Could not checkout base branch ${baseBranch}: ${checkoutError.message}`);
+          core.info('Continuing with migration preview on current branch');
         }
-        
-        // Checkout back to the PR branch
-        core.info(`Checking out PR branch: ${currentBranch}`);
-        await exec.exec('git', ['checkout', currentBranch]);
-      } catch (gitError) {
-        core.warning(`Git operations failed: ${gitError.message}`);
-        core.info('Continuing with migration preview on current branch');
+      } catch (fetchError) {
+        core.warning(`Could not fetch base branch ${baseBranch}: ${fetchError.message}`);
+        core.info('Base branch does not exist remotely, continuing with migration preview on current branch');
       }
     } else {
       core.info('Already on base branch, skipping baseline setup');

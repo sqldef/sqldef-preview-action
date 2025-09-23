@@ -116,7 +116,6 @@ inputs:
   github-token:
     description: 'GitHub token for commenting on PR'
     required: false
-    default: ${{ github.token }}
 
 outputs:
   migration-plan:
