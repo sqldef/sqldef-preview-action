@@ -308,7 +308,6 @@ async function run() {
                 },
             },
         });
-        core.info(`${command} version: ${versionOutput}`);
         const config = getCommandConfig(command);
         const context = github.context;
         // Use baseline comparison when:
@@ -326,35 +325,26 @@ async function run() {
             else {
                 core.info(`Using provided baseline schema file: ${actualBaselineFile}`);
             }
-            // Only apply baseline if we have a valid file
-            if (actualBaselineFile && actualBaselineFile !== "") {
-                const baselineConfig = { ...config };
-                baselineConfig.args = baselineConfig.args.map((arg) => (arg === schemaFile ? actualBaselineFile : arg));
-                core.info("Applying baseline schema to database");
-                await runSqldef(binaryPath, baselineConfig);
+            if (!actualBaselineFile) {
+                core.setFailed("No baseline schema found, skipping baseline application");
+                return;
             }
-            else {
-                core.info("No baseline schema found, skipping baseline application");
-            }
+            const baselineConfig = { ...config };
+            baselineConfig.args = baselineConfig.args.map((arg) => (arg === schemaFile ? actualBaselineFile : arg));
+            core.info("Applying baseline schema to database");
+            await runSqldef(binaryPath, baselineConfig);
             core.info("Applying desired schema to database");
             const output = await runSqldef(binaryPath, config);
             if (context.eventName === "pull_request") {
                 await createComment(output.trim() || "No schema changes detected.", command, versionOutput, schemaFile);
             }
-            if (!baselineSchemaFile && actualBaselineFile && actualBaselineFile !== "" && fs.existsSync(actualBaselineFile)) {
+            if (!baselineSchemaFile && fs.existsSync(actualBaselineFile)) {
                 fs.unlinkSync(actualBaselineFile);
             }
         }
         else {
             core.info("Applying with current schema");
-            const output = await runSqldef(binaryPath, config);
-            if (output.trim()) {
-                core.info("Schema changes:");
-                core.info(output);
-            }
-            else {
-                core.info("No schema changes");
-            }
+            await runSqldef(binaryPath, config);
         }
     }
     catch (error) {
