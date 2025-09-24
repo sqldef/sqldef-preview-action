@@ -11,6 +11,9 @@ inputs:
   schema-file:
     description: 'Path to the schema file'
     required: true
+  baseline-schema-file:
+    description: 'Path to the baseline schema file for comparison (optional)'
+    required: false
   version:
     description: 'Version of sqldef to use'
     required: false

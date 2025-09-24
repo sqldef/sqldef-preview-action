@@ -2,8 +2,9 @@ name: SQLDef Preview Example
 
 on:
   pull_request:
-    paths:
-      - 'schema.sql'
+  push:
+    branches:
+      - example
 
 jobs:
   postgresql-preview:
@@ -35,7 +36,8 @@ jobs:
         with:
           command: psqldef
           version: latest
-          schema-file: schema.sql
+          baseline-schema-file: examples/psqldef-current.sql
+          schema-file: examples/psqldef-desired.sql
           pg-user: postgres
           pg-password: postgres
           pg-host: localhost
@@ -70,7 +72,8 @@ jobs:
         with:
           command: mysqldef
           version: latest
-          schema-file: schema.sql
+          baseline-schema-file: examples/mysqldef-current.sql
+          schema-file: examples/mysqldef-desired.sql
           mysql-user: root
           mysql-password: root
           mysql-host: localhost
@@ -91,7 +94,8 @@ jobs:
         with:
           command: sqlite3def
           version: latest
-          schema-file: schema.sql
+          baseline-schema-file: examples/sqlite3def-current.sql
+          schema-file: examples/sqlite3def-desired.sql
           sqlite-database: test.db
 
   mssql-preview:
@@ -132,7 +136,8 @@ jobs:
         with:
           command: mssqldef
           version: latest
-          schema-file: schema.sql
+          baseline-schema-file: examples/mssqldef-current.sql
+          schema-file: examples/mssqldef-desired.sql
           mssql-user: sa
           mssql-password: YourStrong@Passw0rd
           mssql-host: localhost
