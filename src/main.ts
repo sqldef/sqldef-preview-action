@@ -179,6 +179,16 @@ async function runSqldef(binaryPath: string, config: CommandConfig): Promise<str
     }
     Object.assign(execEnv, config.env);
 
+    // Log the command for debugging
+    const sanitizedArgs = args.map((arg, index) => {
+        // Hide password value for security
+        if (index > 0 && args[index - 1] === "-P") {
+            return "***";
+        }
+        return arg;
+    });
+    core.debug(`Running command: ${binaryPath} ${sanitizedArgs.join(" ")}`);
+
     const exitCode = await exec.exec(binaryPath, args, {
         env: execEnv,
         silent: true,
@@ -194,9 +204,14 @@ async function runSqldef(binaryPath: string, config: CommandConfig): Promise<str
     });
 
     if (exitCode !== 0) {
-        // Include both stdout and stderr in the error message for debugging
-        const errorMessage = stderr || output || "Command failed with no output";
-        throw new Error(`${binaryPath} failed with exit code ${exitCode}: ${errorMessage}`);
+        // Log stderr for debugging before throwing
+        if (stderr) {
+            core.error(`Command stderr: ${stderr}`);
+        }
+        if (output) {
+            core.info(`Command stdout: ${output}`);
+        }
+        throw new Error(`Command failed with exit code ${exitCode}`);
     }
 
     // Return combined output for successful runs
