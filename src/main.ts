@@ -264,6 +264,8 @@ async function createComment(body: string, command: string, versionOutput: strin
     const previousComment = comments.find((comment) => comment.user?.type === "Bot" && comment.body?.includes(htmlCommentId));
 
     const title = `SQLDef Migration Preview`;
+
+    // versionOutput is like "psqldef v0.17.15", so we just add "Command: " prefix
     const commandInfo = `Command: ${versionOutput}`;
     const schemaInfo = `Schema file: \`${schemaFile}\``;
 
