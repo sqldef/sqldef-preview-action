@@ -256,6 +256,12 @@ async function createComment(body: string, command: string, versionOutput: strin
 
     const infoLine = `Migration is performed by \`${command} ${versionOutput}\` with the schema file \`${schemaFile}\``;
 
+    const repository = process.env.GITHUB_REPOSITORY!;
+    const runId = process.env.GITHUB_RUN_ID!;
+    const workflowRef = process.env.GITHUB_WORKFLOW_REF!;
+
+    const runLink = `[${workflowRef}](https://github.com/${repository}/actions/runs/${runId})`;
+
     const commentBody = `
 ${htmlCommentId}
 ## ${title}
@@ -266,7 +272,7 @@ ${infoLine}
 ${body}
 ~~~
 
-This comment was created by [sqldef-preview-action](https://github.com/sqldef/sqldef-preview-action).
+This comment was created by ${runLink}, powered by [sqldef/sqldef-preview-action](https://github.com/sqldef/sqldef-preview-action).
 `.trimStart();
 
     if (previousComment) {
