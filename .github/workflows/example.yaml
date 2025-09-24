@@ -70,19 +70,30 @@ jobs:
 
       - name: Wait for MySQL
         run: |
+          # Wait for MySQL to be ready inside container
           for i in {1..30}; do
-            if docker exec $(docker compose ps -q mysql) mysql -uroot -e "SELECT 1" >/dev/null 2>&1; then
-              echo "MySQL is ready"
+            if docker exec $(docker compose ps -q mysql) mysql -uroot -ptestpass -e "SELECT 1" >/dev/null 2>&1; then
+              echo "MySQL is ready inside container"
               break
             fi
             echo "Waiting for MySQL..."
             sleep 2
           done
+
+          # Give MySQL more time to accept external connections
+          echo "Waiting for MySQL to accept external connections..."
+          sleep 5
+
           # Create the test database
-          docker exec $(docker compose ps -q mysql) mysql -uroot -e "CREATE DATABASE testdb;"
+          docker exec $(docker compose ps -q mysql) mysql -uroot -ptestpass -e "CREATE DATABASE testdb;"
+
+          # Debug: Check MySQL status and users
+          echo "Checking MySQL users and permissions..."
+          docker exec $(docker compose ps -q mysql) mysql -uroot -ptestpass -e "SELECT user, host FROM mysql.user WHERE user='root';"
+
           # Test connection from host
           echo "Testing connection from host..."
-          mysql -h 127.0.0.1 -P 3306 -u root -e "SHOW DATABASES;" || echo "Direct connection failed, but that's OK if mysqldef can connect"
+          mysql -h 127.0.0.1 -P 3306 -u root -ptestpass -e "SHOW DATABASES;" || echo "Note: Direct MySQL client connection failed"
 
       - name: Preview MySQL schema changes
         uses: ./
@@ -92,7 +103,7 @@ jobs:
           baseline-schema-file: examples/mysqldef-current.sql
           schema-file: examples/mysqldef-desired.sql
           mysql-user: root
-          mysql-password: ''
+          mysql-password: 'testpass'
           mysql-host: 127.0.0.1
           mysql-port: 3306
           mysql-database: testdb
