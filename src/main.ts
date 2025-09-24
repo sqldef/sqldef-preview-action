@@ -259,6 +259,19 @@ async function run(): Promise<void> {
         const binaryPath = await downloadSqldef(command, version);
         core.info(`Downloaded ${command} to ${binaryPath}`);
 
+        // Verify the binary works by running --version
+        core.info(`Verifying ${command} binary...`);
+        let versionOutput = "";
+        await exec.exec(binaryPath, ["--version"], {
+            silent: false,
+            listeners: {
+                stdout: (data: Buffer) => {
+                    versionOutput += data.toString();
+                },
+            },
+        });
+        core.info(`${command} version: ${versionOutput.trim()}`);
+
         const config = getCommandConfig(command);
 
         const context = github.context;
