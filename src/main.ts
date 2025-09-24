@@ -94,7 +94,7 @@ function getCommandConfig(command: string): CommandConfig {
         case "mysqldef": {
             const user = core.getInput("mysql-user");
             const password = core.getInput("mysql-password");
-            const host = core.getInput("mysql-host") || "localhost";
+            const host = core.getInput("mysql-host") || "127.0.0.1";
             const port = core.getInput("mysql-port") || "3306";
             const database = core.getInput("mysql-database");
 

@@ -82,7 +82,7 @@ jobs:
           docker exec $(docker compose ps -q mysql) mysql -uroot -e "CREATE DATABASE testdb;"
           # Test connection from host
           echo "Testing connection from host..."
-          mysql -h localhost -P 3306 -u root -e "SHOW DATABASES;" || echo "Direct connection failed, but that's OK if mysqldef can connect"
+          mysql -h 127.0.0.1 -P 3306 -u root -e "SHOW DATABASES;" || echo "Direct connection failed, but that's OK if mysqldef can connect"
 
       - name: Preview MySQL schema changes
         uses: ./
@@ -93,7 +93,7 @@ jobs:
           schema-file: examples/mysqldef-desired.sql
           mysql-user: root
           mysql-password: ''
-          mysql-host: localhost
+          mysql-host: 127.0.0.1
           mysql-port: 3306
           mysql-database: testdb
 

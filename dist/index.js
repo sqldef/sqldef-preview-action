@@ -120,7 +120,7 @@ function getCommandConfig(command) {
         case "mysqldef": {
             const user = core.getInput("mysql-user");
             const password = core.getInput("mysql-password");
-            const host = core.getInput("mysql-host") || "localhost";
+            const host = core.getInput("mysql-host") || "127.0.0.1";
             const port = core.getInput("mysql-port") || "3306";
             const database = core.getInput("mysql-database");
             config.args.push("-h", host, "-P", port);
@@ -341,11 +341,11 @@ async function run() {
                 if (baselineConfig.env) {
                     const sanitizedEnv = { ...baselineConfig.env };
                     // Mask any password values for security
-                    if ('MYSQL_PWD' in sanitizedEnv) {
-                        sanitizedEnv.MYSQL_PWD = sanitizedEnv.MYSQL_PWD ? '***' : '(empty)';
+                    if ("MYSQL_PWD" in sanitizedEnv) {
+                        sanitizedEnv.MYSQL_PWD = sanitizedEnv.MYSQL_PWD ? "***" : "(empty)";
                     }
-                    if ('PGPASSWORD' in sanitizedEnv) {
-                        sanitizedEnv.PGPASSWORD = sanitizedEnv.PGPASSWORD ? '***' : '(empty)';
+                    if ("PGPASSWORD" in sanitizedEnv) {
+                        sanitizedEnv.PGPASSWORD = sanitizedEnv.PGPASSWORD ? "***" : "(empty)";
                     }
                     core.debug(`Environment variables: ${JSON.stringify(sanitizedEnv)}`);
                 }
