@@ -168,6 +168,7 @@ async function getSchemaFromBranch(branch: string, schemaFile: string): Promise<
 
 async function runSqldef(binaryPath: string, config: CommandConfig): Promise<string> {
     let output = "";
+    let stderr = "";
     const args = [...config.args];
 
     const execEnv: Record<string, string> = {};
@@ -178,20 +179,28 @@ async function runSqldef(binaryPath: string, config: CommandConfig): Promise<str
     }
     Object.assign(execEnv, config.env);
 
-    await exec.exec(binaryPath, args, {
+    const exitCode = await exec.exec(binaryPath, args, {
         env: execEnv,
         silent: true,
+        ignoreReturnCode: true,
         listeners: {
             stdout: (data: Buffer) => {
                 output += data.toString();
             },
             stderr: (data: Buffer) => {
-                output += data.toString();
+                stderr += data.toString();
             },
         },
     });
 
-    return output;
+    if (exitCode !== 0) {
+        // Include both stdout and stderr in the error message for debugging
+        const errorMessage = stderr || output || "Command failed with no output";
+        throw new Error(`${binaryPath} failed with exit code ${exitCode}: ${errorMessage}`);
+    }
+
+    // Return combined output for successful runs
+    return output + stderr;
 }
 
 async function createComment(body: string): Promise<void> {
