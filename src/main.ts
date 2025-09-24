@@ -234,7 +234,7 @@ async function runSqldef(binaryPath: string, config: CommandConfig): Promise<str
     return output + stderr;
 }
 
-async function createComment(body: string, command: string, schemaFile: string): Promise<void> {
+async function createComment(body: string, command: string, version: string, schemaFile: string): Promise<void> {
     const context = github.context;
 
     if (context.eventName !== "pull_request") {
@@ -263,14 +263,16 @@ async function createComment(body: string, command: string, schemaFile: string):
     // Find previous comment by searching for the HTML comment ID
     const previousComment = comments.find((comment) => comment.user?.type === "Bot" && comment.body?.includes(htmlCommentId));
 
-    const title = `SQLDef Migration Preview (${command})`;
-    const subtitle = `Schema file: \`${schemaFile}\``;
+    const title = `SQLDef Migration Preview`;
+    const commandInfo = `Command: \`${command}\` ${version}`;
+    const schemaInfo = `Schema file: \`${schemaFile}\``;
 
     const commentBody = `
 ${htmlCommentId}
 ## ${title}
 
-${subtitle}
+${commandInfo}
+${schemaInfo}
 
 ~~~sql
 ${body}
@@ -378,13 +380,13 @@ async function run(): Promise<void> {
                 core.info(output);
                 // Create comment for PR events
                 if (context.eventName === "pull_request") {
-                    await createComment(output, command, schemaFile);
+                    await createComment(output, command, version, schemaFile);
                 }
             } else {
                 core.info("No schema changes detected");
                 // Create comment for PR events
                 if (context.eventName === "pull_request") {
-                    await createComment("No schema changes detected.", command, schemaFile);
+                    await createComment("No schema changes detected.", command, version, schemaFile);
                 }
             }
 

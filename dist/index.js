@@ -249,7 +249,7 @@ async function runSqldef(binaryPath, config) {
     // Return combined output for successful runs
     return output + stderr;
 }
-async function createComment(body, command, schemaFile) {
+async function createComment(body, command, version, schemaFile) {
     const context = github.context;
     if (context.eventName !== "pull_request") {
         core.warning("Not a pull request event, skipping comment");
@@ -271,13 +271,15 @@ async function createComment(body, command, schemaFile) {
     const htmlCommentId = `<!-- sqldef-preview-action-id: ${commentId} -->`;
     // Find previous comment by searching for the HTML comment ID
     const previousComment = comments.find((comment) => comment.user?.type === "Bot" && comment.body?.includes(htmlCommentId));
-    const title = `SQLDef Migration Preview (${command})`;
-    const subtitle = `Schema file: \`${schemaFile}\``;
+    const title = `SQLDef Migration Preview`;
+    const commandInfo = `Command: \`${command}\` ${version}`;
+    const schemaInfo = `Schema file: \`${schemaFile}\``;
     const commentBody = `
 ${htmlCommentId}
 ## ${title}
 
-${subtitle}
+${commandInfo}
+${schemaInfo}
 
 ~~~sql
 ${body}
@@ -375,14 +377,14 @@ async function run() {
                 core.info(output);
                 // Create comment for PR events
                 if (context.eventName === "pull_request") {
-                    await createComment(output, command, schemaFile);
+                    await createComment(output, command, version, schemaFile);
                 }
             }
             else {
                 core.info("No schema changes detected");
                 // Create comment for PR events
                 if (context.eventName === "pull_request") {
-                    await createComment("No schema changes detected.", command, schemaFile);
+                    await createComment("No schema changes detected.", command, version, schemaFile);
                 }
             }
             if (!baselineSchemaFile && actualBaselineFile && actualBaselineFile !== "" && fs.existsSync(actualBaselineFile)) {
