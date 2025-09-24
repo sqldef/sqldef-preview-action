@@ -1,5 +1,5 @@
 name: 'SQLDef Preview'
-description: 'Preview schema changes using sqldef in pull requests'
+description: 'Preview how sqldef migration performs in pull requests'
 author: 'The sqldef team'
 branding:
   icon: 'database'
