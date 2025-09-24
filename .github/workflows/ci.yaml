@@ -213,6 +213,8 @@ jobs:
               created_at TEXT
           );
           EOF
+          # Create empty database file
+          touch test.db
 
       - name: Test SQLite action
         uses: ./
