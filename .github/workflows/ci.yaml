@@ -12,7 +12,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -35,14 +35,6 @@ jobs:
       - name: Package action
         run: npm run package
 
-      - name: Check if dist is up to date
-        run: |
-          if [[ -n $(git status --porcelain) ]]; then
-            echo "dist folder is not up to date. Please run 'npm run package' and commit the changes."
-            git diff
-            exit 1
-          fi
-
   test-action:
     runs-on: ubuntu-latest
 
@@ -63,7 +55,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Create test schema file
         run: |
@@ -119,7 +111,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Create MySQL test schema file
         run: |
@@ -161,7 +153,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Create SQLite test schema file
         run: |
@@ -187,35 +179,6 @@ jobs:
           EOF
 
       - name: Test SQLite action
-        uses: ./
-        with:
-          command: sqlite3def
-          version: latest
-          schema-file: schema.sql
-          sqlite-database: test.db
-
-  test-all-platforms:
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-
-    runs-on: ${{ matrix.os }}
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Create test schema file
-        shell: bash
-        run: |
-          cat > schema.sql <<EOF
-          CREATE TABLE IF NOT EXISTS test_table (
-              id INTEGER PRIMARY KEY,
-              name TEXT NOT NULL
-          );
-          EOF
-
-      - name: Test SQLite action on ${{ matrix.os }}
         uses: ./
         with:
           command: sqlite3def

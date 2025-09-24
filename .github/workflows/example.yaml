@@ -41,7 +41,6 @@ jobs:
           pg-host: localhost
           pg-port: 5432
           pg-database: testdb
-          github-token: ${{ secrets.GITHUB_TOKEN }}
 
   mysql-preview:
     runs-on: ubuntu-latest
@@ -77,7 +76,6 @@ jobs:
           mysql-host: localhost
           mysql-port: 3306
           mysql-database: testdb
-          github-token: ${{ secrets.GITHUB_TOKEN }}
 
   sqlite-preview:
     runs-on: ubuntu-latest
@@ -95,7 +93,6 @@ jobs:
           version: latest
           schema-file: schema.sql
           sqlite-database: test.db
-          github-token: ${{ secrets.GITHUB_TOKEN }}
 
   mssql-preview:
     runs-on: ubuntu-latest
@@ -141,4 +138,3 @@ jobs:
           mssql-host: localhost
           mssql-port: 1433
           mssql-database: testdb
-          github-token: ${{ secrets.GITHUB_TOKEN }}
