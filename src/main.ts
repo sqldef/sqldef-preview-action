@@ -189,19 +189,27 @@ async function runSqldef(binaryPath: string, config: CommandConfig): Promise<str
     });
     core.debug(`Running command: ${binaryPath} ${sanitizedArgs.join(" ")}`);
 
-    const exitCode = await exec.exec(binaryPath, args, {
-        env: execEnv,
-        silent: true,
-        ignoreReturnCode: true,
-        listeners: {
-            stdout: (data: Buffer) => {
-                output += data.toString();
+    // Try to capture all output including stderr
+    let exitCode = 0;
+    try {
+        exitCode = await exec.exec(binaryPath, args, {
+            env: execEnv,
+            silent: false, // Change to false to see output
+            ignoreReturnCode: true,
+            listeners: {
+                stdout: (data: Buffer) => {
+                    output += data.toString();
+                },
+                stderr: (data: Buffer) => {
+                    stderr += data.toString();
+                },
             },
-            stderr: (data: Buffer) => {
-                stderr += data.toString();
-            },
-        },
-    });
+        });
+    } catch (execError) {
+        // If exec itself fails, log the error
+        core.error(`Exec failed: ${execError}`);
+        throw execError;
+    }
 
     if (exitCode !== 0) {
         // Log stderr for debugging before throwing
@@ -323,7 +331,12 @@ async function run(): Promise<void> {
                 baselineConfig.args = baselineConfig.args.map((arg) => (arg === schemaFile ? actualBaselineFile : arg));
 
                 core.info("Applying baseline schema to database");
-                await runSqldef(binaryPath, baselineConfig);
+                try {
+                    await runSqldef(binaryPath, baselineConfig);
+                } catch (error) {
+                    core.error(`Failed to apply baseline schema: ${error}`);
+                    throw error;
+                }
             } else {
                 core.info("No baseline schema found, skipping baseline application");
             }
