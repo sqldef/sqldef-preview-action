@@ -32,7 +32,7 @@ jobs:
           fetch-depth: 0
 
       - name: Preview PostgreSQL schema changes
-        uses: gfx/sqldef-preview-action@main
+        uses: ./
         with:
           command: psqldef
           version: latest
@@ -68,7 +68,7 @@ jobs:
           fetch-depth: 0
 
       - name: Preview MySQL schema changes
-        uses: gfx/sqldef-preview-action@main
+        uses: ./
         with:
           command: mysqldef
           version: latest
@@ -90,7 +90,7 @@ jobs:
           fetch-depth: 0
 
       - name: Preview SQLite schema changes
-        uses: gfx/sqldef-preview-action@main
+        uses: ./
         with:
           command: sqlite3def
           version: latest
@@ -132,7 +132,7 @@ jobs:
           /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P 'YourStrong@Passw0rd' -Q "CREATE DATABASE testdb"
 
       - name: Preview MSSQL schema changes
-        uses: gfx/sqldef-preview-action@main
+        uses: ./
         with:
           command: mssqldef
           version: latest
