@@ -100,9 +100,11 @@ function getCommandConfig(command: string): CommandConfig {
 
             config.args.push("-h", host, "-P", port);
             if (user) config.args.push("-u", user);
-            // Always include -p with the password value (even if empty)
-            // mysqldef accepts -p with empty string for passwordless connections
-            config.args.push(`-p${password}`);
+            // Only include -p if password is not empty
+            // Empty password means no authentication needed
+            if (password && password.trim() !== "") {
+                config.args.push(`-p${password}`);
+            }
             if (database) config.args.push(database);
             break;
         }

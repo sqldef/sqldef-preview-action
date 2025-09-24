@@ -142,14 +142,17 @@ jobs:
 
           # Wait for MSSQL to be ready
           for i in {1..60}; do
-            if docker exec $(docker compose ps -q mssql) /opt/mssql-tools/bin/sqlcmd -S localhost -U SA -P "Passw0rd" -Q "SELECT 1" >/dev/null 2>&1; then
+            # Try both old and new sqlcmd paths for compatibility
+            if docker exec $(docker compose ps -q mssql) /opt/mssql-tools18/bin/sqlcmd -S localhost -U SA -P "Passw0rd" -Q "SELECT 1" -C >/dev/null 2>&1 || \
+               docker exec $(docker compose ps -q mssql) /opt/mssql-tools/bin/sqlcmd -S localhost -U SA -P "Passw0rd" -Q "SELECT 1" >/dev/null 2>&1; then
               echo "MSSQL is ready"
               break
             fi
             echo "Waiting for MSSQL..."
             sleep 3
           done
-          # Create the test database
+          # Create the test database (try both paths)
+          docker exec $(docker compose ps -q mssql) /opt/mssql-tools18/bin/sqlcmd -S localhost -U SA -P "Passw0rd" -Q "CREATE DATABASE testdb;" -C || \
           docker exec $(docker compose ps -q mssql) /opt/mssql-tools/bin/sqlcmd -S localhost -U SA -P "Passw0rd" -Q "CREATE DATABASE testdb;"
 
       - name: Preview MSSQL schema changes
