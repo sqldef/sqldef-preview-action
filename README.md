@@ -46,12 +46,16 @@ jobs:
       postgres:
         image: postgres:15
         env:
+          POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: testdb
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+        ports:
+          - 5432:5432
 
     steps:
       - uses: actions/checkout@v5
@@ -65,20 +69,42 @@ jobs:
           pg-user: postgres
           pg-password: postgres
           pg-database: testdb
-          github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
 ### MySQL Example
 
 ```yaml
-- uses: gfx/sqldef-preview-action@v1
-  with:
-    command: mysqldef
-    schema-file: schema/database.sql
-    mysql-user: root
-    mysql-password: ${{ secrets.MYSQL_PASSWORD }}
-    mysql-host: 127.0.0.1
-    mysql-database: testdb
+jobs:
+  preview-schema:
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: testpassword
+          MYSQL_DATABASE: testdb
+        options: >-
+          --health-cmd "mysqladmin ping -h localhost"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+        ports:
+          - 3306:3306
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: gfx/sqldef-preview-action@v1
+        with:
+          command: mysqldef
+          schema-file: schema/database.sql
+          mysql-user: root
+          mysql-password: testpassword
+          mysql-host: 127.0.0.1
+          mysql-database: testdb
 ```
 
 ### SQLite Example
@@ -94,13 +120,46 @@ jobs:
 ### SQL Server Example
 
 ```yaml
-- uses: gfx/sqldef-preview-action@v1
-  with:
-    command: mssqldef
-    schema-file: schema/database.sql
-    mssql-user: SA
-    mssql-password: ${{ secrets.MSSQL_PASSWORD }}
-    mssql-database: testdb
+jobs:
+  preview-schema:
+    runs-on: ubuntu-latest
+
+    services:
+      mssql:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: Y
+          SA_PASSWORD: YourStrong@Passw0rd
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -S localhost -U SA -P YourStrong@Passw0rd -Q 'SELECT 1' -C"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+          --health-start-period 20s
+        ports:
+          - 1433:1433
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Create database
+        run: |
+          sudo apt-get update && sudo apt-get install -y curl gnupg
+          curl https://packages.microsoft.com/keys/microsoft.asc | sudo tee /etc/apt/trusted.gpg.d/microsoft.asc
+          curl https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/prod.list | sudo tee /etc/apt/sources.list.d/mssql-release.list
+          sudo apt-get update
+          sudo ACCEPT_EULA=Y apt-get install -y mssql-tools18
+          /opt/mssql-tools18/bin/sqlcmd -S localhost -U SA -P "YourStrong@Passw0rd" -Q "CREATE DATABASE testdb;" -C
+
+      - uses: gfx/sqldef-preview-action@v1
+        with:
+          command: mssqldef
+          schema-file: schema/database.sql
+          mssql-user: SA
+          mssql-password: YourStrong@Passw0rd
+          mssql-database: testdb
 ```
 
 ## Input Parameters
@@ -172,33 +231,30 @@ You can use sqldef configuration files for additional settings:
     # ... database connection parameters
 ```
 
-### Using with Docker Compose
+### Multiple Database Types
 
-For complex database setups, combine with Docker Compose:
+You can test against multiple database types in parallel:
 
 ```yaml
-steps:
-  - uses: actions/checkout@v5
-    with:
-      fetch-depth: 0
+jobs:
+  preview-postgresql:
+    # PostgreSQL configuration as shown above
 
-  - name: Start database services
-    run: docker-compose up -d
+  preview-mysql:
+    # MySQL configuration as shown above
 
-  - name: Wait for database
-    run: |
-      for i in {1..30}; do
-        if docker exec postgres pg_isready; then
-          break
-        fi
-        sleep 2
-      done
+  preview-sqlite:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
-  - uses: gfx/sqldef-preview-action@v1
-    with:
-      command: psqldef
-      schema-file: schema/database.sql
-      # ... connection parameters
+      - uses: gfx/sqldef-preview-action@v1
+        with:
+          command: sqlite3def
+          schema-file: schema/database.sql
+          sqlite-database: test.db
 ```
 
 ## Example PR Comment

@@ -249,7 +249,7 @@ async function runSqldef(binaryPath, config) {
     // Return combined output for successful runs
     return output + stderr;
 }
-async function createComment(body) {
+async function createComment(body, command, versionOutput, schemaFile) {
     const context = github.context;
     if (context.eventName !== "pull_request") {
         core.warning("Not a pull request event, skipping comment");
@@ -266,10 +266,18 @@ async function createComment(body) {
         repo: context.repo.repo,
         issue_number: context.payload.pull_request.number,
     });
-    const title = "SQLDef Migration Preview";
-    const previousComment = comments.find((comment) => comment.user?.type === "Bot" && comment.body?.includes(title));
+    // Create a unique ID for this command/schema combination
+    const commentId = `${command}-${schemaFile}`;
+    const htmlCommentId = `<!-- sqldef-preview-action-id: ${commentId} -->`;
+    // Find previous comment by searching for the HTML comment ID
+    const previousComment = comments.find((comment) => comment.user?.type === "Bot" && comment.body?.includes(htmlCommentId));
+    const title = `SQLDef Migration Preview`;
+    const infoLine = `Migration is performed by \`${command}\` \`${versionOutput}\` with the schema file: \`${schemaFile}\``;
     const commentBody = `
+${htmlCommentId}
 ## ${title}
+
+${infoLine}
 
 ~~~sql
 ${body}
@@ -365,16 +373,16 @@ async function run() {
             if (output.trim()) {
                 core.info("Schema changes detected:");
                 core.info(output);
-                // Only create comment for actual PR events
-                if (context.eventName === "pull_request" && !baselineSchemaFile) {
-                    await createComment(output);
+                // Create comment for PR events
+                if (context.eventName === "pull_request") {
+                    await createComment(output, command, versionOutput.trim(), schemaFile);
                 }
             }
             else {
                 core.info("No schema changes detected");
-                // Only create comment for actual PR events
-                if (context.eventName === "pull_request" && !baselineSchemaFile) {
-                    await createComment("No schema changes detected.");
+                // Create comment for PR events
+                if (context.eventName === "pull_request") {
+                    await createComment("No schema changes detected.", command, versionOutput.trim(), schemaFile);
                 }
             }
             if (!baselineSchemaFile && actualBaselineFile && actualBaselineFile !== "" && fs.existsSync(actualBaselineFile)) {

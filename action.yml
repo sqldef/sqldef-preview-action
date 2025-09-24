@@ -84,7 +84,6 @@ inputs:
   github-token:
     description: 'GitHub token for commenting on pull requests'
     required: false
-    default: ${{ github.token }}
 
 runs:
   using: 'node24'

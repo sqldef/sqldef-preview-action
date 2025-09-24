@@ -11,50 +11,58 @@ jobs:
   postgresql-preview:
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: testdb
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
-
-      - name: Start PostgreSQL with Docker Compose
-        run: |
-          docker compose up -d postgres
-        env:
-          POSTGRES_VERSION: 17
-
-      - name: Wait for PostgreSQL
-        run: |
-          for i in {1..30}; do
-            if docker exec $(docker compose ps -q postgres) pg_isready -U postgres >/dev/null 2>&1; then
-              echo "PostgreSQL is ready"
-              break
-            fi
-            echo "Waiting for PostgreSQL..."
-            sleep 2
-          done
-          # Create the test database
-          docker exec $(docker compose ps -q postgres) psql -U postgres -c "CREATE DATABASE testdb;"
 
       - name: Preview PostgreSQL schema changes
         uses: ./
         with:
           command: psqldef
           version: latest
+          config-file: examples/psqldef.yaml
           baseline-schema-file: examples/psqldef-current.sql
           schema-file: examples/psqldef-desired.sql
           pg-user: postgres
-          pg-password: ''
+          pg-password: postgres
           pg-host: localhost
           pg-port: 5432
           pg-database: testdb
-
-      - name: Stop PostgreSQL
-        if: always()
-        run: docker compose down postgres
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
   mysql-preview:
     runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: testpass
+          MYSQL_DATABASE: testdb
+        options: >-
+          --health-cmd "mysqladmin ping -h localhost -u root -ptestpass"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+        ports:
+          - 3306:3306
 
     steps:
       - name: Checkout code
@@ -62,55 +70,20 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Start MySQL with Docker Compose
-        run: |
-          docker compose up -d mysql
-        env:
-          MYSQL_VERSION: 8.0
-
-      - name: Wait for MySQL
-        run: |
-          # Wait for MySQL to be ready inside container
-          for i in {1..30}; do
-            if docker exec $(docker compose ps -q mysql) mysql -uroot -ptestpass -e "SELECT 1" >/dev/null 2>&1; then
-              echo "MySQL is ready inside container"
-              break
-            fi
-            echo "Waiting for MySQL..."
-            sleep 2
-          done
-
-          # Give MySQL more time to accept external connections
-          echo "Waiting for MySQL to accept external connections..."
-          sleep 5
-
-          # Create the test database
-          docker exec $(docker compose ps -q mysql) mysql -uroot -ptestpass -e "CREATE DATABASE testdb;"
-
-          # Debug: Check MySQL status and users
-          echo "Checking MySQL users and permissions..."
-          docker exec $(docker compose ps -q mysql) mysql -uroot -ptestpass -e "SELECT user, host FROM mysql.user WHERE user='root';"
-
-          # Test connection from host
-          echo "Testing connection from host..."
-          mysql -h 127.0.0.1 -P 3306 -u root -ptestpass -e "SHOW DATABASES;" || echo "Note: Direct MySQL client connection failed"
-
       - name: Preview MySQL schema changes
         uses: ./
         with:
           command: mysqldef
           version: latest
+          config-file: examples/mysqldef.yaml
           baseline-schema-file: examples/mysqldef-current.sql
           schema-file: examples/mysqldef-desired.sql
           mysql-user: root
-          mysql-password: 'testpass'
+          mysql-password: testpass
           mysql-host: 127.0.0.1
           mysql-port: 3306
           mysql-database: testdb
-
-      - name: Stop MySQL
-        if: always()
-        run: docker compose down mysql
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
   sqlite-preview:
     runs-on: ubuntu-latest
@@ -126,12 +99,29 @@ jobs:
         with:
           command: sqlite3def
           version: latest
+          config-file: examples/sqlite3def.yaml
           baseline-schema-file: examples/sqlite3def-current.sql
           schema-file: examples/sqlite3def-desired.sql
           sqlite-database: test.db
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
   mssql-preview:
     runs-on: ubuntu-latest
+
+    services:
+      mssql:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: Y
+          SA_PASSWORD: Passw0rd
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -S localhost -U SA -P Passw0rd -Q 'SELECT 1' -C || /opt/mssql-tools/bin/sqlcmd -S localhost -U SA -P Passw0rd -Q 'SELECT 1'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+          --health-start-period 20s
+        ports:
+          - 1433:1433
 
     steps:
       - name: Checkout code
@@ -139,13 +129,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Start MSSQL with Docker Compose
-        run: |
-          docker compose up -d mssql
-        env:
-          MSSQL_VERSION: 2022-latest
-
-      - name: Wait for MSSQL
+      - name: Setup MSSQL database
         run: |
           # Install sqlcmd tools
           sudo apt-get update && sudo apt-get install -y curl gnupg
@@ -154,26 +138,15 @@ jobs:
           sudo apt-get update
           sudo ACCEPT_EULA=Y apt-get install -y mssql-tools18
 
-          # Wait for MSSQL to be ready
-          for i in {1..60}; do
-            # Try both old and new sqlcmd paths for compatibility
-            if docker exec $(docker compose ps -q mssql) /opt/mssql-tools18/bin/sqlcmd -S localhost -U SA -P "Passw0rd" -Q "SELECT 1" -C >/dev/null 2>&1 || \
-               docker exec $(docker compose ps -q mssql) /opt/mssql-tools/bin/sqlcmd -S localhost -U SA -P "Passw0rd" -Q "SELECT 1" >/dev/null 2>&1; then
-              echo "MSSQL is ready"
-              break
-            fi
-            echo "Waiting for MSSQL..."
-            sleep 3
-          done
-          # Create the test database (try both paths)
-          docker exec $(docker compose ps -q mssql) /opt/mssql-tools18/bin/sqlcmd -S localhost -U SA -P "Passw0rd" -Q "CREATE DATABASE testdb;" -C || \
-          docker exec $(docker compose ps -q mssql) /opt/mssql-tools/bin/sqlcmd -S localhost -U SA -P "Passw0rd" -Q "CREATE DATABASE testdb;"
+          # Create the test database
+          /opt/mssql-tools18/bin/sqlcmd -S localhost -U SA -P "Passw0rd" -Q "CREATE DATABASE testdb;" -C
 
       - name: Preview MSSQL schema changes
         uses: ./
         with:
           command: mssqldef
           version: latest
+          config-file: examples/mssql.yaml
           baseline-schema-file: examples/mssqldef-current.sql
           schema-file: examples/mssqldef-desired.sql
           mssql-user: SA
@@ -181,7 +154,4 @@ jobs:
           mssql-host: localhost
           mssql-port: 1433
           mssql-database: testdb
-
-      - name: Stop MSSQL
-        if: always()
-        run: docker compose down mssql
+          github-token: ${{ secrets.GITHUB_TOKEN }}
