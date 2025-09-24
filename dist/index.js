@@ -126,10 +126,10 @@ function getCommandConfig(command) {
             config.args.push("-h", host, "-P", port);
             if (user)
                 config.args.push("-u", user);
-            // Only include -p if password is not empty
-            // Empty password means no authentication needed
-            if (password && password.trim() !== "") {
-                config.args.push(`-p${password}`);
+            // Use environment variable for password (works with empty passwords)
+            // This avoids command line parsing issues with -p flag
+            if (password !== undefined) {
+                config.env = { ...config.env, MYSQL_PWD: password };
             }
             if (database)
                 config.args.push(database);
@@ -147,12 +147,13 @@ function getCommandConfig(command) {
             const host = core.getInput("mssql-host") || "localhost";
             const port = core.getInput("mssql-port") || "1433";
             const database = core.getInput("mssql-database");
-            config.args.push("-h", host, "-P", port);
+            // For mssqldef: -p is port, -P is password (opposite of mysqldef!)
+            config.args.push("-h", host, "-p", port);
             if (user)
                 config.args.push("-U", user);
-            // Only add -p flag if password is not empty
+            // Add -P flag for password if provided
             if (password && password.trim() !== "") {
-                config.args.push(`-p${password}`);
+                config.args.push(`-P${password}`);
             }
             if (database)
                 config.args.push(database);
