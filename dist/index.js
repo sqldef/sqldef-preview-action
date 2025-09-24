@@ -337,6 +337,18 @@ async function run() {
                 const baselineConfig = { ...config };
                 baselineConfig.args = baselineConfig.args.map((arg) => (arg === schemaFile ? actualBaselineFile : arg));
                 core.info("Applying baseline schema to database");
+                // Debug: Log environment variables being set
+                if (baselineConfig.env) {
+                    const sanitizedEnv = { ...baselineConfig.env };
+                    // Mask any password values for security
+                    if ('MYSQL_PWD' in sanitizedEnv) {
+                        sanitizedEnv.MYSQL_PWD = sanitizedEnv.MYSQL_PWD ? '***' : '(empty)';
+                    }
+                    if ('PGPASSWORD' in sanitizedEnv) {
+                        sanitizedEnv.PGPASSWORD = sanitizedEnv.PGPASSWORD ? '***' : '(empty)';
+                    }
+                    core.debug(`Environment variables: ${JSON.stringify(sanitizedEnv)}`);
+                }
                 try {
                     await runSqldef(binaryPath, baselineConfig);
                 }
