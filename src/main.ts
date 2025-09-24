@@ -131,10 +131,10 @@ function getCommandConfig(command: string): CommandConfig {
             if (user) config.args.push("-U", user);
             // Add -P flag for password if provided
             if (password && password.trim() !== "") {
-                config.args.push("-P", password);
+                config.args.push(`-P${password}`);
             }
             if (database) config.args.push(database);
-            config.sanitizedArgs = config.args.map((arg) => (arg === password ? "***" : arg));
+            config.sanitizedArgs = config.args.map((arg) => (arg === `-P${password}` ? "-P***" : arg));
             break;
         }
         default:
