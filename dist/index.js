@@ -156,7 +156,7 @@ function getCommandConfig(command) {
             if (user)
                 config.args.push("-U", user);
             // Add -P flag for password if provided
-            if (password && password.trim() !== "") {
+            if (password) {
                 config.args.push(`-P${password}`);
             }
             if (database)
