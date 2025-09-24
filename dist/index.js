@@ -237,7 +237,7 @@ async function runSqldef(binaryPath, config) {
     }
     return output + stderr;
 }
-async function createComment(body, command, versionOutput, schemaFile) {
+async function createComment(sqldefOutput, command, versionOutput, schemaFile) {
     const context = github.context;
     if (context.eventName !== "pull_request") {
         core.warning("Not a pull request event, skipping comment");
@@ -263,8 +263,9 @@ async function createComment(body, command, versionOutput, schemaFile) {
     const infoLine = `Migration is performed by \`${command} ${versionOutput}\` with the schema file \`${schemaFile}\``;
     const repository = process.env.GITHUB_REPOSITORY;
     const runId = process.env.GITHUB_RUN_ID;
-    const workflowRef = process.env.GITHUB_WORKFLOW_REF;
-    const runLink = `[${workflowRef}](https://github.com/${repository}/actions/runs/${runId})`;
+    const jobId = process.env.GITHUB_JOB;
+    const workflow = process.env.GITHUB_WORKFLOW;
+    const runLink = `[${workflow}](https://github.com/${repository}/actions/runs/${runId}/jobs/${jobId})`;
     const commentBody = `
 ${htmlCommentId}
 ## ${title}
@@ -272,12 +273,13 @@ ${htmlCommentId}
 ${infoLine}
 
 ~~~sql
-${body}
+${sqldefOutput}
 ~~~
 
 This comment was created by ${runLink}, powered by [sqldef/sqldef-preview-action](https://github.com/sqldef/sqldef-preview-action).
 `.trimStart();
     if (previousComment) {
+        core.info(`Updating previous comment with ID: ${previousComment.id}`);
         await octokit.rest.issues.updateComment({
             owner: context.repo.owner,
             repo: context.repo.repo,
@@ -286,6 +288,7 @@ This comment was created by ${runLink}, powered by [sqldef/sqldef-preview-action
         });
     }
     else {
+        core.info("Creating new comment");
         await octokit.rest.issues.createComment({
             owner: context.repo.owner,
             repo: context.repo.repo,
@@ -343,20 +346,8 @@ async function run() {
             }
             core.info("Applying desired schema to database");
             const output = await runSqldef(binaryPath, config);
-            if (output.trim()) {
-                core.info("Schema changes detected:");
-                core.info(output);
-                // Create comment for PR events
-                if (context.eventName === "pull_request") {
-                    await createComment(output, command, versionOutput, schemaFile);
-                }
-            }
-            else {
-                core.info("No schema changes detected");
-                // Create comment for PR events
-                if (context.eventName === "pull_request") {
-                    await createComment("No schema changes detected.", command, versionOutput, schemaFile);
-                }
+            if (context.eventName === "pull_request") {
+                await createComment(output.trim() || "No schema changes detected.", command, versionOutput, schemaFile);
             }
             if (!baselineSchemaFile && actualBaselineFile && actualBaselineFile !== "" && fs.existsSync(actualBaselineFile)) {
                 fs.unlinkSync(actualBaselineFile);
