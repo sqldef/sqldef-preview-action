@@ -185,18 +185,9 @@ async function runSqldef(binaryPath: string, config: CommandConfig): Promise<str
     let output = "";
     let stderr = "";
 
-    const execEnv: Record<string, string> = {};
-    for (const [key, value] of Object.entries(process.env)) {
-        if (value !== undefined) {
-            execEnv[key] = value;
-        }
-    }
-    Object.assign(execEnv, config.env);
-
     core.debug(`Running command: ${binaryPath} ${config.sanitizedArgs.join(" ")}`);
 
     const exitCode = await exec.exec(binaryPath, config.args, {
-        env: execEnv,
         silent: false,
         ignoreReturnCode: true,
         listeners: {
