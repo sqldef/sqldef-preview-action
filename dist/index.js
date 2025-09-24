@@ -240,12 +240,8 @@ async function createComment(sqldefOutput, command, versionOutput, schemaFile) {
         core.warning("Not a pull request event, skipping comment");
         return;
     }
-    const token = core.getInput("github-token") || process.env.GITHUB_TOKEN;
-    if (!token) {
-        core.warning("No GitHub token provided, skipping comment");
-        return;
-    }
-    const octokit = github.getOctokit(token);
+    const githubToken = core.getInput("github-token");
+    const octokit = github.getOctokit(githubToken);
     const { data: comments } = await octokit.rest.issues.listComments({
         owner: context.repo.owner,
         repo: context.repo.repo,
