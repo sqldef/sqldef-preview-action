@@ -265,7 +265,7 @@ async function createComment(body: string, command: string, versionOutput: strin
 
     const title = `SQLDef Migration Preview`;
 
-    const infoLine = `Migration is performed by \`${command}\` \`${versionOutput}\` with the schema file: \`${schemaFile}\``;
+    const infoLine = `Migration is performed by \`${command} ${versionOutput}\` with the schema file \`${schemaFile}\``;
 
     const commentBody = `
 ${htmlCommentId}
