@@ -9,6 +9,7 @@ import * as os from "os";
 interface CommandConfig {
     command: string;
     args: string[];
+    sanitizedArgs: string[]; // args with password hidden
     env?: Record<string, string>;
 }
 
@@ -71,6 +72,7 @@ function getCommandConfig(command: string): CommandConfig {
     const config: CommandConfig = {
         command: "",
         args: [],
+        sanitizedArgs: [],
         env: {},
     };
 
@@ -89,6 +91,8 @@ function getCommandConfig(command: string): CommandConfig {
             if (user) config.args.push("-U", user);
             if (database) config.args.push(database);
             if (password) config.env = { ...config.env, PGPASSWORD: password };
+
+            config.sanitizedArgs = [...config.args];
             break;
         }
         case "mysqldef": {
@@ -106,11 +110,13 @@ function getCommandConfig(command: string): CommandConfig {
                 config.env = { ...config.env, MYSQL_PWD: password };
             }
             if (database) config.args.push(database);
+            config.sanitizedArgs = [...config.args];
             break;
         }
         case "sqlite3def": {
             const database = core.getInput("sqlite-database");
             if (database) config.args.push(database);
+            config.sanitizedArgs = [...config.args];
             break;
         }
         case "mssqldef": {
@@ -125,9 +131,10 @@ function getCommandConfig(command: string): CommandConfig {
             if (user) config.args.push("-U", user);
             // Add -P flag for password if provided
             if (password && password.trim() !== "") {
-                config.args.push(`-P${password}`);
+                config.args.push("-P", password);
             }
             if (database) config.args.push(database);
+            config.sanitizedArgs = config.args.map((arg) => (arg === password ? "***" : arg));
             break;
         }
         default:
@@ -177,7 +184,6 @@ async function getSchemaFromBranch(branch: string, schemaFile: string): Promise<
 async function runSqldef(binaryPath: string, config: CommandConfig): Promise<string> {
     let output = "";
     let stderr = "";
-    const args = [...config.args];
 
     const execEnv: Record<string, string> = {};
     for (const [key, value] of Object.entries(process.env)) {
@@ -187,16 +193,9 @@ async function runSqldef(binaryPath: string, config: CommandConfig): Promise<str
     }
     Object.assign(execEnv, config.env);
 
-    const sanitizedArgs = args.map((arg, index) => {
-        // Hide password value for security
-        if (index > 0 && args[index - 1] === "-P") {
-            return "***";
-        }
-        return arg;
-    });
-    core.debug(`Running command: ${binaryPath} ${sanitizedArgs.join(" ")}`);
+    core.debug(`Running command: ${binaryPath} ${config.sanitizedArgs.join(" ")}`);
 
-    const exitCode = await exec.exec(binaryPath, args, {
+    const exitCode = await exec.exec(binaryPath, config.args, {
         env: execEnv,
         silent: false,
         ignoreReturnCode: true,
