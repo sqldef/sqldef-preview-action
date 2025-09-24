@@ -136,16 +136,33 @@ function getCommandConfig(command: string): CommandConfig {
 }
 
 async function getSchemaFromBranch(branch: string, schemaFile: string): Promise<string> {
-    const tempFile = path.join(os.tmpdir(), `schema-${branch}-${Date.now()}.sql`);
+    const tempFile = path.join(os.tmpdir(), `schema-${branch.replace(/\//g, "-")}-${Date.now()}.sql`);
 
+    // Create empty file first to ensure it exists
+    fs.writeFileSync(tempFile, "");
+
+    let exitCode = 0;
     await exec.exec("git", ["show", `${branch}:${schemaFile}`], {
         silent: true,
+        ignoreReturnCode: true,
         listeners: {
             stdout: (data: Buffer) => {
                 fs.appendFileSync(tempFile, data);
             },
+            stderr: (data: Buffer) => {
+                // Log stderr for debugging but don't fail
+                core.debug(`git show stderr: ${data.toString()}`);
+            },
         },
+    }).catch((error) => {
+        exitCode = error.exitCode || 1;
     });
+
+    if (exitCode !== 0) {
+        // If the file doesn't exist in the base branch, return empty schema
+        core.warning(`Could not find ${schemaFile} in ${branch}, using empty baseline schema`);
+        fs.writeFileSync(tempFile, "-- Empty baseline schema\n");
+    }
 
     return tempFile;
 }
