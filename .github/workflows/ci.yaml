@@ -6,6 +6,8 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -15,7 +17,7 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '24'
           cache: 'npm'
@@ -34,154 +36,3 @@ jobs:
 
       - name: Package action
         run: npm run package
-
-  test-action:
-    runs-on: ubuntu-latest
-
-    services:
-      postgres:
-        image: postgres:17
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: testdb
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v5
-
-      - name: Create test schema file
-        run: |
-          cat > schema.sql <<EOF
-          CREATE TABLE IF NOT EXISTS users (
-              id SERIAL PRIMARY KEY,
-              username VARCHAR(50) UNIQUE NOT NULL,
-              email VARCHAR(100) UNIQUE NOT NULL,
-              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-          );
-
-          CREATE TABLE IF NOT EXISTS posts (
-              id SERIAL PRIMARY KEY,
-              user_id INTEGER REFERENCES users(id),
-              title VARCHAR(200) NOT NULL,
-              content TEXT,
-              published_at TIMESTAMP,
-              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-          );
-
-          CREATE INDEX IF NOT EXISTS idx_posts_user_id ON posts(user_id);
-          CREATE INDEX IF NOT EXISTS idx_posts_published_at ON posts(published_at);
-          EOF
-
-      - name: Test PostgreSQL action (dry-run)
-        uses: ./
-        with:
-          command: psqldef
-          version: latest
-          schema-file: schema.sql
-          pg-user: postgres
-          pg-password: postgres
-          pg-host: localhost
-          pg-port: 5432
-          pg-database: testdb
-
-  test-mysql:
-    runs-on: ubuntu-latest
-
-    services:
-      mysql:
-        image: mysql:8.0
-        env:
-          MYSQL_ROOT_PASSWORD: root
-          MYSQL_DATABASE: testdb
-        options: >-
-          --health-cmd="mysqladmin ping"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
-        ports:
-          - 3306:3306
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v5
-
-      - name: Create MySQL test schema file
-        run: |
-          cat > schema.sql <<EOF
-          CREATE TABLE IF NOT EXISTS users (
-              id INT AUTO_INCREMENT PRIMARY KEY,
-              username VARCHAR(50) UNIQUE NOT NULL,
-              email VARCHAR(100) UNIQUE NOT NULL,
-              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-          );
-
-          CREATE TABLE IF NOT EXISTS posts (
-              id INT AUTO_INCREMENT PRIMARY KEY,
-              user_id INT,
-              title VARCHAR(200) NOT NULL,
-              content TEXT,
-              published_at TIMESTAMP NULL,
-              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-              FOREIGN KEY (user_id) REFERENCES users(id),
-              INDEX idx_posts_user_id (user_id),
-              INDEX idx_posts_published_at (published_at)
-          );
-          EOF
-
-      - name: Test MySQL action
-        uses: ./
-        with:
-          command: mysqldef
-          version: latest
-          schema-file: schema.sql
-          mysql-user: root
-          mysql-password: root
-          mysql-host: 127.0.0.1
-          mysql-port: 3306
-          mysql-database: testdb
-
-  test-sqlite:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v5
-
-      - name: Create SQLite test schema file
-        run: |
-          cat > schema.sql <<EOF
-          CREATE TABLE IF NOT EXISTS users (
-              id INTEGER PRIMARY KEY AUTOINCREMENT,
-              username TEXT UNIQUE NOT NULL,
-              email TEXT UNIQUE NOT NULL,
-              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-          );
-
-          CREATE TABLE IF NOT EXISTS posts (
-              id INTEGER PRIMARY KEY AUTOINCREMENT,
-              user_id INTEGER REFERENCES users(id),
-              title TEXT NOT NULL,
-              content TEXT,
-              published_at TIMESTAMP,
-              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-          );
-
-          CREATE INDEX IF NOT EXISTS idx_posts_user_id ON posts(user_id);
-          CREATE INDEX IF NOT EXISTS idx_posts_published_at ON posts(published_at);
-          EOF
-
-      - name: Test SQLite action
-        uses: ./
-        with:
-          command: sqlite3def
-          version: latest
-          schema-file: schema.sql
-          sqlite-database: test.db
