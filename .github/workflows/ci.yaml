@@ -188,7 +188,7 @@ jobs:
               id INTEGER PRIMARY KEY AUTOINCREMENT,
               username TEXT UNIQUE NOT NULL,
               email TEXT UNIQUE NOT NULL,
-              created_at TEXT DEFAULT CURRENT_TIMESTAMP
+              created_at TEXT
           );
 
           CREATE TABLE posts (
@@ -197,7 +197,7 @@ jobs:
               title TEXT NOT NULL,
               content TEXT,
               published_at TEXT,
-              created_at TEXT DEFAULT CURRENT_TIMESTAMP
+              created_at TEXT
           );
 
           CREATE INDEX idx_posts_user_id ON posts(user_id);
@@ -210,7 +210,7 @@ jobs:
           CREATE TABLE users (
               id INTEGER PRIMARY KEY AUTOINCREMENT,
               username TEXT UNIQUE NOT NULL,
-              created_at TEXT DEFAULT CURRENT_TIMESTAMP
+              created_at TEXT
           );
           EOF
 
