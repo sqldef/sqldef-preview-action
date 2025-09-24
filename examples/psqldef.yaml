@@ -1,1 +1,2 @@
 enable_drop: true
+create_index_concurrently: true
