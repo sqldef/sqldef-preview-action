@@ -223,7 +223,7 @@ async function runSqldef(binaryPath: string, config: CommandConfig): Promise<str
     return output + stderr;
 }
 
-async function createComment(body: string, command: string, versionOutput: string, schemaFile: string): Promise<void> {
+async function createComment(sqldefOutput: string, command: string, versionOutput: string, schemaFile: string): Promise<void> {
     const context = github.context;
 
     if (context.eventName !== "pull_request") {
@@ -270,13 +270,14 @@ ${htmlCommentId}
 ${infoLine}
 
 ~~~sql
-${body}
+${sqldefOutput}
 ~~~
 
 This comment was created by ${runLink}, powered by [sqldef/sqldef-preview-action](https://github.com/sqldef/sqldef-preview-action).
 `.trimStart();
 
     if (previousComment) {
+        core.info(`Updating previous comment with ID: ${previousComment.id}`);
         await octokit.rest.issues.updateComment({
             owner: context.repo.owner,
             repo: context.repo.repo,
@@ -284,6 +285,7 @@ This comment was created by ${runLink}, powered by [sqldef/sqldef-preview-action
             body: commentBody,
         });
     } else {
+        core.info("Creating new comment");
         await octokit.rest.issues.createComment({
             owner: context.repo.owner,
             repo: context.repo.repo,
@@ -352,19 +354,8 @@ async function run(): Promise<void> {
             core.info("Applying desired schema to database");
             const output = await runSqldef(binaryPath, config);
 
-            if (output.trim()) {
-                core.info("Schema changes detected:");
-                core.info(output);
-                // Create comment for PR events
-                if (context.eventName === "pull_request") {
-                    await createComment(output, command, versionOutput, schemaFile);
-                }
-            } else {
-                core.info("No schema changes detected");
-                // Create comment for PR events
-                if (context.eventName === "pull_request") {
-                    await createComment("No schema changes detected.", command, versionOutput, schemaFile);
-                }
+            if (context.eventName === "pull_request") {
+                await createComment(output.trim() || "No schema changes detected.", command, versionOutput, schemaFile);
             }
 
             if (!baselineSchemaFile && actualBaselineFile && actualBaselineFile !== "" && fs.existsSync(actualBaselineFile)) {
