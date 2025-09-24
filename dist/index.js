@@ -185,7 +185,9 @@ async function getSchemaFromBranch(branch, schemaFile) {
     if (exitCode !== 0) {
         // If the file doesn't exist in the base branch, return empty schema
         core.warning(`Could not find ${schemaFile} in ${branch}, using empty baseline schema`);
-        fs.writeFileSync(tempFile, "-- Empty baseline schema\n");
+        // Return empty string to signal no baseline exists
+        fs.unlinkSync(tempFile);
+        return "";
     }
     return tempFile;
 }
@@ -281,10 +283,16 @@ async function run() {
             else {
                 core.info(`Using provided baseline schema file: ${actualBaselineFile}`);
             }
-            const baselineConfig = { ...config };
-            baselineConfig.args = baselineConfig.args.map((arg) => (arg === schemaFile ? actualBaselineFile : arg));
-            core.info("Applying baseline schema to database");
-            await runSqldef(binaryPath, baselineConfig);
+            // Only apply baseline if we have a valid file
+            if (actualBaselineFile && actualBaselineFile !== "") {
+                const baselineConfig = { ...config };
+                baselineConfig.args = baselineConfig.args.map((arg) => (arg === schemaFile ? actualBaselineFile : arg));
+                core.info("Applying baseline schema to database");
+                await runSqldef(binaryPath, baselineConfig);
+            }
+            else {
+                core.info("No baseline schema found, skipping baseline application");
+            }
             core.info("Applying desired schema to database");
             const output = await runSqldef(binaryPath, config);
             if (output.trim()) {
@@ -296,7 +304,7 @@ async function run() {
                 core.info("No schema changes detected");
                 await createComment("No schema changes detected.");
             }
-            if (!baselineSchemaFile && fs.existsSync(actualBaselineFile)) {
+            if (!baselineSchemaFile && actualBaselineFile && actualBaselineFile !== "" && fs.existsSync(actualBaselineFile)) {
                 fs.unlinkSync(actualBaselineFile);
             }
         }
