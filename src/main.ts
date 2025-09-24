@@ -258,9 +258,10 @@ async function createComment(body: string, command: string, versionOutput: strin
 
     const repository = process.env.GITHUB_REPOSITORY!;
     const runId = process.env.GITHUB_RUN_ID!;
-    const workflowRef = process.env.GITHUB_WORKFLOW_REF!;
+    const jobId = process.env.GITHUB_JOB!;
+    const workflow = process.env.GITHUB_WORKFLOW!;
 
-    const runLink = `[${workflowRef}](https://github.com/${repository}/actions/runs/${runId})`;
+    const runLink = `[${workflow}](https://github.com/${repository}/actions/runs/${runId}/jobs/${jobId})`;
 
     const commentBody = `
 ${htmlCommentId}
