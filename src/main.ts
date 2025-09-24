@@ -258,7 +258,7 @@ async function createComment(sqldefOutput: string, command: string, versionOutpu
 
     const repository = process.env.GITHUB_REPOSITORY!;
     const runId = process.env.GITHUB_RUN_ID!;
-    const jobId = process.env.GITHUB_JOB!;
+    const jobId = process.env.GITHUB_JOB_ID!;
     const workflow = process.env.GITHUB_WORKFLOW!;
 
     const runLink = `[${workflow}](https://github.com/${repository}/actions/runs/${runId}/jobs/${jobId})`;

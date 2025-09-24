@@ -263,7 +263,7 @@ async function createComment(sqldefOutput, command, versionOutput, schemaFile) {
     const infoLine = `Migration is performed by \`${command} ${versionOutput}\` with the schema file \`${schemaFile}\``;
     const repository = process.env.GITHUB_REPOSITORY;
     const runId = process.env.GITHUB_RUN_ID;
-    const jobId = process.env.GITHUB_JOB;
+    const jobId = process.env.GITHUB_JOB_ID;
     const workflow = process.env.GITHUB_WORKFLOW;
     const runLink = `[${workflow}](https://github.com/${repository}/actions/runs/${runId}/jobs/${jobId})`;
     const commentBody = `
