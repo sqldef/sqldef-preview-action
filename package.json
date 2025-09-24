@@ -8,7 +8,7 @@
     "format": "prettier --write **/*.ts",
     "format-check": "prettier --check **/*.ts",
     "lint": "echo TODO",
-    "package": "ncc build --source-map --license licenses.txt",
+    "package": "ncc build build/main.js -o dist --source-map --license licenses.txt",
     "test": "echo TODO",
     "all": "npm run build && npm run format && npm run lint && npm run package"
   },

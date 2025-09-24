@@ -116,9 +116,9 @@ function getCommandConfig(command: string): CommandConfig {
             const port = core.getInput("mssql-port") || "1433";
             const database = core.getInput("mssql-database");
 
-            config.args.push("-h", host, "-p", port);
+            config.args.push("-h", host, "-P", port);
             if (user) config.args.push("-U", user);
-            if (password) config.args.push("-P", password);
+            if (password) config.args.push(`-p${password}`);
             if (database) config.args.push(database);
             break;
         }
