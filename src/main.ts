@@ -62,7 +62,7 @@ async function downloadSqldef(command: string, version: string): Promise<string>
     const toolPath = await tc.cacheDir(extractedPath, command, version);
     const binaryPath = path.join(toolPath, command);
 
-    await fs.promises.chmod(binaryPath, 0o755);
+    fs.chmodSync(binaryPath, 0o755);
 
     return binaryPath;
 }
@@ -102,7 +102,7 @@ function getCommandConfig(command: string): CommandConfig {
             if (user) config.args.push("-u", user);
             // Use environment variable for password (works with empty passwords)
             // This avoids command line parsing issues with -p flag
-            if (password !== undefined) {
+            if (password != null) {
                 config.env = { ...config.env, MYSQL_PWD: password };
             }
             if (database) config.args.push(database);
@@ -187,7 +187,6 @@ async function runSqldef(binaryPath: string, config: CommandConfig): Promise<str
     }
     Object.assign(execEnv, config.env);
 
-    // Log the command for debugging
     const sanitizedArgs = args.map((arg, index) => {
         // Hide password value for security
         if (index > 0 && args[index - 1] === "-P") {
@@ -197,30 +196,21 @@ async function runSqldef(binaryPath: string, config: CommandConfig): Promise<str
     });
     core.debug(`Running command: ${binaryPath} ${sanitizedArgs.join(" ")}`);
 
-    // Try to capture all output including stderr
-    let exitCode = 0;
-    try {
-        exitCode = await exec.exec(binaryPath, args, {
-            env: execEnv,
-            silent: false, // Change to false to see output
-            ignoreReturnCode: true,
-            listeners: {
-                stdout: (data: Buffer) => {
-                    output += data.toString();
-                },
-                stderr: (data: Buffer) => {
-                    stderr += data.toString();
-                },
+    const exitCode = await exec.exec(binaryPath, args, {
+        env: execEnv,
+        silent: false,
+        ignoreReturnCode: true,
+        listeners: {
+            stdout: (data: Buffer) => {
+                output += data.toString();
             },
-        });
-    } catch (execError) {
-        // If exec itself fails, log the error
-        core.error(`Exec failed: ${execError}`);
-        throw execError;
-    }
+            stderr: (data: Buffer) => {
+                stderr += data.toString();
+            },
+        },
+    });
 
     if (exitCode !== 0) {
-        // Log stderr for debugging before throwing
         if (stderr) {
             core.error(`Command stderr: ${stderr}`);
         }
@@ -230,7 +220,6 @@ async function runSqldef(binaryPath: string, config: CommandConfig): Promise<str
         throw new Error(`Command failed with exit code ${exitCode}`);
     }
 
-    // Return combined output for successful runs
     return output + stderr;
 }
 
@@ -263,7 +252,7 @@ async function createComment(body: string, command: string, versionOutput: strin
     // Find previous comment by searching for the HTML comment ID
     const previousComment = comments.find((comment) => comment.user?.type === "Bot" && comment.body?.includes(htmlCommentId));
 
-    const title = `SQLDef Migration Preview`;
+    const title = "SQLDef Migration Preview";
 
     const infoLine = `Migration is performed by \`${command} ${versionOutput}\` with the schema file \`${schemaFile}\``;
 
@@ -300,7 +289,7 @@ This comment was created by [sqldef-preview-action](https://github.com/sqldef/sq
 async function run(): Promise<void> {
     try {
         const command = core.getInput("command", { required: true });
-        const version = core.getInput("version") || "v3.0.0";
+        const version = core.getInput("version");
         const schemaFile = core.getInput("schema-file", { required: true });
         const baselineSchemaFile = core.getInput("baseline-schema-file");
 
@@ -309,18 +298,17 @@ async function run(): Promise<void> {
         const binaryPath = await downloadSqldef(command, version);
         core.info(`Downloaded ${command} to ${binaryPath}`);
 
-        // Verify the binary works by running --version
         core.info(`Verifying ${command} binary...`);
         let versionOutput = "";
         await exec.exec(binaryPath, ["--version"], {
             silent: false,
             listeners: {
                 stdout: (data: Buffer) => {
-                    versionOutput += data.toString();
+                    versionOutput += data.toString().trim();
                 },
             },
         });
-        core.info(`${command} version: ${versionOutput.trim()}`);
+        core.info(`${command} version: ${versionOutput}`);
 
         const config = getCommandConfig(command);
 
@@ -349,24 +337,7 @@ async function run(): Promise<void> {
                 baselineConfig.args = baselineConfig.args.map((arg) => (arg === schemaFile ? actualBaselineFile : arg));
 
                 core.info("Applying baseline schema to database");
-                // Debug: Log environment variables being set
-                if (baselineConfig.env) {
-                    const sanitizedEnv = { ...baselineConfig.env };
-                    // Mask any password values for security
-                    if ("MYSQL_PWD" in sanitizedEnv) {
-                        sanitizedEnv.MYSQL_PWD = sanitizedEnv.MYSQL_PWD ? "***" : "(empty)";
-                    }
-                    if ("PGPASSWORD" in sanitizedEnv) {
-                        sanitizedEnv.PGPASSWORD = sanitizedEnv.PGPASSWORD ? "***" : "(empty)";
-                    }
-                    core.debug(`Environment variables: ${JSON.stringify(sanitizedEnv)}`);
-                }
-                try {
-                    await runSqldef(binaryPath, baselineConfig);
-                } catch (error) {
-                    core.error(`Failed to apply baseline schema: ${error}`);
-                    throw error;
-                }
+                await runSqldef(binaryPath, baselineConfig);
             } else {
                 core.info("No baseline schema found, skipping baseline application");
             }
@@ -379,13 +350,13 @@ async function run(): Promise<void> {
                 core.info(output);
                 // Create comment for PR events
                 if (context.eventName === "pull_request") {
-                    await createComment(output, command, versionOutput.trim(), schemaFile);
+                    await createComment(output, command, versionOutput, schemaFile);
                 }
             } else {
                 core.info("No schema changes detected");
                 // Create comment for PR events
                 if (context.eventName === "pull_request") {
-                    await createComment("No schema changes detected.", command, versionOutput.trim(), schemaFile);
+                    await createComment("No schema changes detected.", command, versionOutput, schemaFile);
                 }
             }
 
