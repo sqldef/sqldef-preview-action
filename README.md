@@ -69,7 +69,6 @@ jobs:
           pg-user: postgres
           pg-password: postgres
           pg-database: testdb
-          github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
 ### MySQL Example
@@ -83,7 +82,7 @@ jobs:
       mysql:
         image: mysql:8.0
         env:
-          MYSQL_ROOT_PASSWORD: ${{ secrets.MYSQL_PASSWORD }}
+          MYSQL_ROOT_PASSWORD: testpassword
           MYSQL_DATABASE: testdb
         options: >-
           --health-cmd "mysqladmin ping -h localhost"
@@ -103,7 +102,7 @@ jobs:
           command: mysqldef
           schema-file: schema/database.sql
           mysql-user: root
-          mysql-password: ${{ secrets.MYSQL_PASSWORD }}
+          mysql-password: testpassword
           mysql-host: 127.0.0.1
           mysql-database: testdb
 ```
@@ -130,9 +129,9 @@ jobs:
         image: mcr.microsoft.com/mssql/server:2022-latest
         env:
           ACCEPT_EULA: Y
-          SA_PASSWORD: ${{ secrets.MSSQL_PASSWORD }}
+          SA_PASSWORD: YourStrong@Passw0rd
         options: >-
-          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -S localhost -U SA -P ${{ secrets.MSSQL_PASSWORD }} -Q 'SELECT 1' -C"
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -S localhost -U SA -P YourStrong@Passw0rd -Q 'SELECT 1' -C"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 10
@@ -152,14 +151,14 @@ jobs:
           curl https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/prod.list | sudo tee /etc/apt/sources.list.d/mssql-release.list
           sudo apt-get update
           sudo ACCEPT_EULA=Y apt-get install -y mssql-tools18
-          /opt/mssql-tools18/bin/sqlcmd -S localhost -U SA -P "${{ secrets.MSSQL_PASSWORD }}" -Q "CREATE DATABASE testdb;" -C
+          /opt/mssql-tools18/bin/sqlcmd -S localhost -U SA -P "YourStrong@Passw0rd" -Q "CREATE DATABASE testdb;" -C
 
       - uses: gfx/sqldef-preview-action@v1
         with:
           command: mssqldef
           schema-file: schema/database.sql
           mssql-user: SA
-          mssql-password: ${{ secrets.MSSQL_PASSWORD }}
+          mssql-password: YourStrong@Passw0rd
           mssql-database: testdb
 ```
 
