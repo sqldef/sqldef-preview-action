@@ -17,7 +17,7 @@ inputs:
   version:
     description: 'Version of sqldef to use'
     required: false
-    default: 'v3.0.0'
+    default: 'v3.0.1'
   config-file:
     description: 'Path to sqldef config file'
     required: false
@@ -83,7 +83,7 @@ inputs:
   # GitHub token for PR comments
   github-token:
     description: 'GitHub token for commenting on pull requests'
-    required: false
+    required: true
 
 runs:
   using: 'node24'
