@@ -6,6 +6,11 @@ on:
     branches:
       - example
 
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
 jobs:
   postgresql-preview:
     runs-on: ubuntu-latest
