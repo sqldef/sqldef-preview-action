@@ -263,7 +263,10 @@ async function run(): Promise<void> {
 
         const context = github.context;
 
-        if (context.eventName === "pull_request" || baselineSchemaFile) {
+        // Use baseline comparison when:
+        // 1. It's a pull request event AND no baseline file is provided
+        // 2. A baseline file is explicitly provided
+        if ((context.eventName === "pull_request" && !baselineSchemaFile) || baselineSchemaFile) {
             let actualBaselineFile = baselineSchemaFile;
 
             if (!actualBaselineFile) {
@@ -294,10 +297,16 @@ async function run(): Promise<void> {
             if (output.trim()) {
                 core.info("Schema changes detected:");
                 core.info(output);
-                await createComment(output);
+                // Only create comment for actual PR events
+                if (context.eventName === "pull_request" && !baselineSchemaFile) {
+                    await createComment(output);
+                }
             } else {
                 core.info("No schema changes detected");
-                await createComment("No schema changes detected.");
+                // Only create comment for actual PR events
+                if (context.eventName === "pull_request" && !baselineSchemaFile) {
+                    await createComment("No schema changes detected.");
+                }
             }
 
             if (!baselineSchemaFile && actualBaselineFile && actualBaselineFile !== "" && fs.existsSync(actualBaselineFile)) {

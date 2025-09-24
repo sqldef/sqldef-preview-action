@@ -80,11 +80,24 @@ jobs:
           CREATE INDEX IF NOT EXISTS idx_posts_published_at ON posts(published_at);
           EOF
 
+      - name: Create baseline schema
+        run: |
+          cat > baseline.sql <<EOF
+          CREATE TABLE IF NOT EXISTS users (
+              id SERIAL PRIMARY KEY,
+              username VARCHAR(50) UNIQUE NOT NULL,
+              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          );
+          EOF
+
       - name: Test PostgreSQL action (dry-run)
         uses: ./
+        env:
+          GITHUB_EVENT_NAME: push
         with:
           command: psqldef
           version: latest
+          baseline-schema-file: baseline.sql
           schema-file: schema.sql
           pg-user: postgres
           pg-password: postgres
@@ -136,11 +149,24 @@ jobs:
           );
           EOF
 
+      - name: Create baseline schema
+        run: |
+          cat > baseline.sql <<EOF
+          CREATE TABLE IF NOT EXISTS users (
+              id INT AUTO_INCREMENT PRIMARY KEY,
+              username VARCHAR(50) UNIQUE NOT NULL,
+              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          );
+          EOF
+
       - name: Test MySQL action
         uses: ./
+        env:
+          GITHUB_EVENT_NAME: push
         with:
           command: mysqldef
           version: latest
+          baseline-schema-file: baseline.sql
           schema-file: schema.sql
           mysql-user: root
           mysql-password: root
@@ -158,30 +184,123 @@ jobs:
       - name: Create SQLite test schema file
         run: |
           cat > schema.sql <<EOF
-          CREATE TABLE IF NOT EXISTS users (
+          CREATE TABLE users (
               id INTEGER PRIMARY KEY AUTOINCREMENT,
               username TEXT UNIQUE NOT NULL,
               email TEXT UNIQUE NOT NULL,
-              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+              created_at TEXT DEFAULT CURRENT_TIMESTAMP
           );
 
-          CREATE TABLE IF NOT EXISTS posts (
+          CREATE TABLE posts (
               id INTEGER PRIMARY KEY AUTOINCREMENT,
               user_id INTEGER REFERENCES users(id),
               title TEXT NOT NULL,
               content TEXT,
-              published_at TIMESTAMP,
-              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+              published_at TEXT,
+              created_at TEXT DEFAULT CURRENT_TIMESTAMP
           );
 
-          CREATE INDEX IF NOT EXISTS idx_posts_user_id ON posts(user_id);
-          CREATE INDEX IF NOT EXISTS idx_posts_published_at ON posts(published_at);
+          CREATE INDEX idx_posts_user_id ON posts(user_id);
+          CREATE INDEX idx_posts_published_at ON posts(published_at);
+          EOF
+
+      - name: Create baseline schema
+        run: |
+          cat > baseline.sql <<EOF
+          CREATE TABLE users (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              username TEXT UNIQUE NOT NULL,
+              created_at TEXT DEFAULT CURRENT_TIMESTAMP
+          );
           EOF
 
       - name: Test SQLite action
         uses: ./
+        env:
+          GITHUB_EVENT_NAME: push
         with:
           command: sqlite3def
           version: latest
+          baseline-schema-file: baseline.sql
           schema-file: schema.sql
           sqlite-database: test.db
+
+  test-mssql:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2019-CU32-ubuntu-20.04
+        env:
+          ACCEPT_EULA: Y
+          SA_PASSWORD: YourStrong@Passw0rd
+          MSSQL_PID: Developer
+        options: >-
+          --health-cmd "/opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P 'YourStrong@Passw0rd' -Q 'SELECT 1'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+        ports:
+          - 1433:1433
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Wait for SQL Server
+        run: |
+          for i in {1..30}; do
+            /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P 'YourStrong@Passw0rd' -Q 'SELECT 1' && break
+            echo "Waiting for SQL Server..."
+            sleep 2
+          done
+          /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P 'YourStrong@Passw0rd' -Q "CREATE DATABASE testdb"
+
+      - name: Create test schema file
+        run: |
+          cat > schema.sql <<EOF
+          CREATE TABLE users (
+              id INT IDENTITY(1,1) PRIMARY KEY,
+              username NVARCHAR(50) UNIQUE NOT NULL,
+              email NVARCHAR(100) UNIQUE NOT NULL,
+              created_at DATETIME2 DEFAULT GETDATE()
+          );
+
+          CREATE TABLE posts (
+              id INT IDENTITY(1,1) PRIMARY KEY,
+              user_id INT FOREIGN KEY REFERENCES users(id),
+              title NVARCHAR(200) NOT NULL,
+              content NTEXT,
+              published_at DATETIME2,
+              created_at DATETIME2 DEFAULT GETDATE()
+          );
+
+          CREATE INDEX idx_posts_user_id ON posts(user_id);
+          CREATE INDEX idx_posts_published_at ON posts(published_at);
+          EOF
+
+      - name: Create baseline schema
+        run: |
+          cat > baseline.sql <<EOF
+          CREATE TABLE users (
+              id INT IDENTITY(1,1) PRIMARY KEY,
+              username NVARCHAR(50) UNIQUE NOT NULL,
+              created_at DATETIME2 DEFAULT GETDATE()
+          );
+          EOF
+
+      - name: Test MSSQL action
+        uses: ./
+        env:
+          GITHUB_EVENT_NAME: push
+        with:
+          command: mssqldef
+          version: latest
+          baseline-schema-file: baseline.sql
+          schema-file: schema.sql
+          mssql-user: sa
+          mssql-password: YourStrong@Passw0rd
+          mssql-host: localhost
+          mssql-port: 1433
+          mssql-database: testdb
