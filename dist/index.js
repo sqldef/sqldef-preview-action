@@ -157,11 +157,11 @@ function getCommandConfig(command) {
                 config.args.push("-U", user);
             // Add -P flag for password if provided
             if (password && password.trim() !== "") {
-                config.args.push("-P", password);
+                config.args.push(`-P${password}`);
             }
             if (database)
                 config.args.push(database);
-            config.sanitizedArgs = config.args.map((arg) => (arg === password ? "***" : arg));
+            config.sanitizedArgs = config.args.map((arg) => (arg === `-P${password}` ? "-P***" : arg));
             break;
         }
         default:
@@ -202,8 +202,16 @@ async function getSchemaFromBranch(branch, schemaFile) {
 async function runSqldef(binaryPath, config) {
     let output = "";
     let stderr = "";
+    const execEnv = {};
+    for (const [key, value] of Object.entries(process.env)) {
+        if (value !== undefined) {
+            execEnv[key] = value;
+        }
+    }
+    Object.assign(execEnv, config.env);
     core.debug(`Running command: ${binaryPath} ${config.sanitizedArgs.join(" ")}`);
     const exitCode = await exec.exec(binaryPath, config.args, {
+        env: execEnv,
         silent: false,
         ignoreReturnCode: true,
         listeners: {
