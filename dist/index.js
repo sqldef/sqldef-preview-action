@@ -90,7 +90,7 @@ async function downloadSqldef(command, version) {
     const extractedPath = await tc.extractTar(downloadPath);
     const toolPath = await tc.cacheDir(extractedPath, command, version);
     const binaryPath = path.join(toolPath, command);
-    await fs.promises.chmod(binaryPath, 0o755);
+    fs.chmodSync(binaryPath, 0o755);
     return binaryPath;
 }
 function getCommandConfig(command) {
@@ -111,10 +111,12 @@ function getCommandConfig(command) {
             config.args.push("-h", host, "-p", port);
             if (user)
                 config.args.push("-U", user);
+            if (password) {
+                config.env.PGPASSWORD = password;
+                core.setSecret(password);
+            }
             if (database)
                 config.args.push(database);
-            if (password)
-                config.env = { ...config.env, PGPASSWORD: password };
             break;
         }
         case "mysqldef": {
@@ -128,8 +130,9 @@ function getCommandConfig(command) {
                 config.args.push("-u", user);
             // Use environment variable for password (works with empty passwords)
             // This avoids command line parsing issues with -p flag
-            if (password !== undefined) {
-                config.env = { ...config.env, MYSQL_PWD: password };
+            if (password) {
+                config.env.MYSQL_PWD = password;
+                core.setSecret(password);
             }
             if (database)
                 config.args.push(database);
@@ -152,8 +155,9 @@ function getCommandConfig(command) {
             if (user)
                 config.args.push("-U", user);
             // Add -P flag for password if provided
-            if (password && password.trim() !== "") {
+            if (password) {
                 config.args.push(`-P${password}`);
+                core.setSecret(password);
             }
             if (database)
                 config.args.push(database);
@@ -197,7 +201,6 @@ async function getSchemaFromBranch(branch, schemaFile) {
 async function runSqldef(binaryPath, config) {
     let output = "";
     let stderr = "";
-    const args = [...config.args];
     const execEnv = {};
     for (const [key, value] of Object.entries(process.env)) {
         if (value !== undefined) {
@@ -205,39 +208,20 @@ async function runSqldef(binaryPath, config) {
         }
     }
     Object.assign(execEnv, config.env);
-    // Log the command for debugging
-    const sanitizedArgs = args.map((arg, index) => {
-        // Hide password value for security
-        if (index > 0 && args[index - 1] === "-P") {
-            return "***";
-        }
-        return arg;
-    });
-    core.debug(`Running command: ${binaryPath} ${sanitizedArgs.join(" ")}`);
-    // Try to capture all output including stderr
-    let exitCode = 0;
-    try {
-        exitCode = await exec.exec(binaryPath, args, {
-            env: execEnv,
-            silent: false, // Change to false to see output
-            ignoreReturnCode: true,
-            listeners: {
-                stdout: (data) => {
-                    output += data.toString();
-                },
-                stderr: (data) => {
-                    stderr += data.toString();
-                },
+    const exitCode = await exec.exec(binaryPath, config.args, {
+        env: execEnv,
+        silent: false,
+        ignoreReturnCode: true,
+        listeners: {
+            stdout: (data) => {
+                output += data.toString();
             },
-        });
-    }
-    catch (execError) {
-        // If exec itself fails, log the error
-        core.error(`Exec failed: ${execError}`);
-        throw execError;
-    }
+            stderr: (data) => {
+                stderr += data.toString();
+            },
+        },
+    });
     if (exitCode !== 0) {
-        // Log stderr for debugging before throwing
         if (stderr) {
             core.error(`Command stderr: ${stderr}`);
         }
@@ -246,21 +230,16 @@ async function runSqldef(binaryPath, config) {
         }
         throw new Error(`Command failed with exit code ${exitCode}`);
     }
-    // Return combined output for successful runs
     return output + stderr;
 }
-async function createComment(body, command, versionOutput, schemaFile) {
+async function createComment(sqldefOutput, command, versionOutput, schemaFile) {
     const context = github.context;
     if (context.eventName !== "pull_request") {
         core.warning("Not a pull request event, skipping comment");
         return;
     }
-    const token = core.getInput("github-token") || process.env.GITHUB_TOKEN;
-    if (!token) {
-        core.warning("No GitHub token provided, skipping comment");
-        return;
-    }
-    const octokit = github.getOctokit(token);
+    const githubToken = core.getInput("github-token");
+    const octokit = github.getOctokit(githubToken);
     const { data: comments } = await octokit.rest.issues.listComments({
         owner: context.repo.owner,
         repo: context.repo.repo,
@@ -271,8 +250,12 @@ async function createComment(body, command, versionOutput, schemaFile) {
     const htmlCommentId = `<!-- sqldef-preview-action-id: ${commentId} -->`;
     // Find previous comment by searching for the HTML comment ID
     const previousComment = comments.find((comment) => comment.user?.type === "Bot" && comment.body?.includes(htmlCommentId));
-    const title = `SQLDef Migration Preview`;
-    const infoLine = `Migration is performed by \`${command}\` \`${versionOutput}\` with the schema file: \`${schemaFile}\``;
+    const title = "SQLDef Migration Preview";
+    const infoLine = `This migration was generated by \`${command} ${versionOutput}\` using the schema file \`${schemaFile}\`.`;
+    const repository = process.env.GITHUB_REPOSITORY;
+    const runId = process.env.GITHUB_RUN_ID;
+    const workflow = process.env.GITHUB_WORKFLOW;
+    const runLink = `[${workflow}](https://github.com/${repository}/actions/runs/${runId})`;
     const commentBody = `
 ${htmlCommentId}
 ## ${title}
@@ -280,12 +263,13 @@ ${htmlCommentId}
 ${infoLine}
 
 ~~~sql
-${body}
+${sqldefOutput}
 ~~~
 
-This comment was created by [sqldef-preview-action](https://github.com/sqldef/sqldef-preview-action).
+This comment was generated by ${runLink}, powered by [sqldef/sqldef-preview-action](https://github.com/sqldef/sqldef-preview-action).
 `.trimStart();
     if (previousComment) {
+        core.info(`Updating previous comment with ID: ${previousComment.id}`);
         await octokit.rest.issues.updateComment({
             owner: context.repo.owner,
             repo: context.repo.repo,
@@ -294,6 +278,7 @@ This comment was created by [sqldef-preview-action](https://github.com/sqldef/sq
         });
     }
     else {
+        core.info("Creating new comment");
         await octokit.rest.issues.createComment({
             owner: context.repo.owner,
             repo: context.repo.repo,
@@ -305,24 +290,22 @@ This comment was created by [sqldef-preview-action](https://github.com/sqldef/sq
 async function run() {
     try {
         const command = core.getInput("command", { required: true });
-        const version = core.getInput("version") || "v3.0.0";
+        const version = core.getInput("version");
         const schemaFile = core.getInput("schema-file", { required: true });
         const baselineSchemaFile = core.getInput("baseline-schema-file");
         core.info(`Running SQLDef Preview with ${command} ${version}`);
         const binaryPath = await downloadSqldef(command, version);
         core.info(`Downloaded ${command} to ${binaryPath}`);
-        // Verify the binary works by running --version
         core.info(`Verifying ${command} binary...`);
         let versionOutput = "";
         await exec.exec(binaryPath, ["--version"], {
             silent: false,
             listeners: {
                 stdout: (data) => {
-                    versionOutput += data.toString();
+                    versionOutput += data.toString().trim();
                 },
             },
         });
-        core.info(`${command} version: ${versionOutput.trim()}`);
         const config = getCommandConfig(command);
         const context = github.context;
         // Use baseline comparison when:
@@ -340,65 +323,26 @@ async function run() {
             else {
                 core.info(`Using provided baseline schema file: ${actualBaselineFile}`);
             }
-            // Only apply baseline if we have a valid file
-            if (actualBaselineFile && actualBaselineFile !== "") {
-                const baselineConfig = { ...config };
-                baselineConfig.args = baselineConfig.args.map((arg) => (arg === schemaFile ? actualBaselineFile : arg));
-                core.info("Applying baseline schema to database");
-                // Debug: Log environment variables being set
-                if (baselineConfig.env) {
-                    const sanitizedEnv = { ...baselineConfig.env };
-                    // Mask any password values for security
-                    if ("MYSQL_PWD" in sanitizedEnv) {
-                        sanitizedEnv.MYSQL_PWD = sanitizedEnv.MYSQL_PWD ? "***" : "(empty)";
-                    }
-                    if ("PGPASSWORD" in sanitizedEnv) {
-                        sanitizedEnv.PGPASSWORD = sanitizedEnv.PGPASSWORD ? "***" : "(empty)";
-                    }
-                    core.debug(`Environment variables: ${JSON.stringify(sanitizedEnv)}`);
-                }
-                try {
-                    await runSqldef(binaryPath, baselineConfig);
-                }
-                catch (error) {
-                    core.error(`Failed to apply baseline schema: ${error}`);
-                    throw error;
-                }
+            if (!actualBaselineFile) {
+                core.setFailed("No baseline schema found, skipping baseline application");
+                return;
             }
-            else {
-                core.info("No baseline schema found, skipping baseline application");
-            }
+            const baselineConfig = { ...config };
+            baselineConfig.args = baselineConfig.args.map((arg) => (arg === schemaFile ? actualBaselineFile : arg));
+            core.info("Applying baseline schema to database");
+            await runSqldef(binaryPath, baselineConfig);
             core.info("Applying desired schema to database");
             const output = await runSqldef(binaryPath, config);
-            if (output.trim()) {
-                core.info("Schema changes detected:");
-                core.info(output);
-                // Create comment for PR events
-                if (context.eventName === "pull_request") {
-                    await createComment(output, command, versionOutput.trim(), schemaFile);
-                }
+            if (context.eventName === "pull_request") {
+                await createComment(output.trim() || "No schema changes detected.", command, versionOutput, schemaFile);
             }
-            else {
-                core.info("No schema changes detected");
-                // Create comment for PR events
-                if (context.eventName === "pull_request") {
-                    await createComment("No schema changes detected.", command, versionOutput.trim(), schemaFile);
-                }
-            }
-            if (!baselineSchemaFile && actualBaselineFile && actualBaselineFile !== "" && fs.existsSync(actualBaselineFile)) {
+            if (!baselineSchemaFile && fs.existsSync(actualBaselineFile)) {
                 fs.unlinkSync(actualBaselineFile);
             }
         }
         else {
             core.info("Applying with current schema");
-            const output = await runSqldef(binaryPath, config);
-            if (output.trim()) {
-                core.info("Schema changes:");
-                core.info(output);
-            }
-            else {
-                core.info("No schema changes");
-            }
+            await runSqldef(binaryPath, config);
         }
     }
     catch (error) {

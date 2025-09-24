@@ -1,4 +1,4 @@
-name: SQLDef Preview Example
+name: SQLDef Preview
 
 on:
   pull_request:
@@ -8,7 +8,7 @@ permissions:
   pull-requests: write
 
 jobs:
-  postgresql-preview:
+  psqldef-preview:
     runs-on: ubuntu-latest
 
     services:
@@ -45,9 +45,9 @@ jobs:
           pg-host: localhost
           pg-port: 5432
           pg-database: testdb
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ github.token }}
 
-  mysql-preview:
+  mysqldef-preview:
     runs-on: ubuntu-latest
 
     services:
@@ -83,9 +83,9 @@ jobs:
           mysql-host: 127.0.0.1
           mysql-port: 3306
           mysql-database: testdb
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ github.token }}
 
-  sqlite-preview:
+  sqlite3def-preview:
     runs-on: ubuntu-latest
 
     steps:
@@ -103,9 +103,9 @@ jobs:
           baseline-schema-file: examples/sqlite3def-current.sql
           schema-file: examples/sqlite3def-desired.sql
           sqlite-database: test.db
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ github.token }}
 
-  mssql-preview:
+  mssqldef-preview:
     runs-on: ubuntu-latest
 
     services:
@@ -124,8 +124,7 @@ jobs:
           - 1433:1433
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v5
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -154,4 +153,4 @@ jobs:
           mssql-host: localhost
           mssql-port: 1433
           mssql-database: testdb
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ github.token }}
