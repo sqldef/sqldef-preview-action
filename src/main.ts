@@ -194,9 +194,7 @@ async function createComment(body: string): Promise<void> {
 
     const title = "SQLDef Migration Preview";
 
-    const previousComment = comments.find(
-        (comment) => comment.user?.type === "Bot" && comment.body?.includes(title),
-    );
+    const previousComment = comments.find((comment) => comment.user?.type === "Bot" && comment.body?.includes(title));
 
     const commentBody = `
 ## ${title}
@@ -271,8 +269,8 @@ async function run(): Promise<void> {
                 fs.unlinkSync(baselineSchemaFile);
             }
         } else {
-            core.info("Running dry-run with current schema");
-            const output = await runSqldef(binaryPath, config, true);
+            core.info("Applying with current schema");
+            const output = await runSqldef(binaryPath, config);
 
             if (output.trim()) {
                 core.info("Schema changes:");

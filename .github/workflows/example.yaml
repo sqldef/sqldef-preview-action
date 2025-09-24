@@ -11,7 +11,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:16
+        image: postgres:17
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -34,7 +34,7 @@ jobs:
         uses: gfx/sqldef-preview-action@main
         with:
           command: psqldef
-          sqldef-version: v0.17.24
+          version: latest
           schema-file: schema.sql
           pg-user: postgres
           pg-password: postgres
@@ -70,7 +70,7 @@ jobs:
         uses: gfx/sqldef-preview-action@main
         with:
           command: mysqldef
-          sqldef-version: v0.17.24
+          version: latest
           schema-file: schema.sql
           mysql-user: root
           mysql-password: root
@@ -92,7 +92,7 @@ jobs:
         uses: gfx/sqldef-preview-action@main
         with:
           command: sqlite3def
-          sqldef-version: v0.17.24
+          version: latest
           schema-file: schema.sql
           sqlite-database: test.db
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -134,7 +134,7 @@ jobs:
         uses: gfx/sqldef-preview-action@main
         with:
           command: mssqldef
-          sqldef-version: v0.17.24
+          version: latest
           schema-file: schema.sql
           mssql-user: sa
           mssql-password: YourStrong@Passw0rd

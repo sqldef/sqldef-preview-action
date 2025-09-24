@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 jobs:
-  lint:
+  build:
     runs-on: ubuntu-latest
 
     steps:
@@ -92,7 +92,7 @@ jobs:
         uses: ./
         with:
           command: psqldef
-          sqldef-version: v0.17.24
+          version: latest
           schema-file: schema.sql
           pg-user: postgres
           pg-password: postgres
@@ -148,7 +148,7 @@ jobs:
         uses: ./
         with:
           command: mysqldef
-          sqldef-version: v0.17.24
+          version: latest
           schema-file: schema.sql
           mysql-user: root
           mysql-password: root
@@ -190,7 +190,7 @@ jobs:
         uses: ./
         with:
           command: sqlite3def
-          sqldef-version: v0.17.24
+          version: latest
           schema-file: schema.sql
           sqlite-database: test.db
 
@@ -219,6 +219,6 @@ jobs:
         uses: ./
         with:
           command: sqlite3def
-          sqldef-version: v0.17.24
+          version: latest
           schema-file: schema.sql
           sqlite-database: test.db
