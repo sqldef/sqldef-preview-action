@@ -228,6 +228,7 @@ async function run(): Promise<void> {
         const command = core.getInput("command", { required: true });
         const version = core.getInput("version") || "v3.0.0";
         const schemaFile = core.getInput("schema-file", { required: true });
+        const baselineSchemaFile = core.getInput("baseline-schema-file");
 
         core.info(`Running SQLDef Preview with ${command} ${version}`);
 
@@ -238,17 +239,22 @@ async function run(): Promise<void> {
 
         const context = github.context;
 
-        if (context.eventName === "pull_request") {
-            const baseBranch = context.payload.pull_request!.base.ref;
+        if (context.eventName === "pull_request" || baselineSchemaFile) {
+            let actualBaselineFile = baselineSchemaFile;
 
-            core.info(`Fetching base branch: ${baseBranch}`);
-            await exec.exec("git", ["fetch", "origin", baseBranch]);
+            if (!actualBaselineFile) {
+                const baseBranch = context.payload.pull_request!.base.ref;
+                core.info(`Fetching base branch: ${baseBranch}`);
+                await exec.exec("git", ["fetch", "origin", baseBranch]);
 
-            core.info("Getting baseline schema from base branch");
-            const baselineSchemaFile = await getSchemaFromBranch(`origin/${baseBranch}`, schemaFile);
+                core.info("Getting baseline schema from base branch");
+                actualBaselineFile = await getSchemaFromBranch(`origin/${baseBranch}`, schemaFile);
+            } else {
+                core.info(`Using provided baseline schema file: ${actualBaselineFile}`);
+            }
 
             const baselineConfig = { ...config };
-            baselineConfig.args = baselineConfig.args.map((arg) => (arg === schemaFile ? baselineSchemaFile : arg));
+            baselineConfig.args = baselineConfig.args.map((arg) => (arg === schemaFile ? actualBaselineFile : arg));
 
             core.info("Applying baseline schema to database");
             await runSqldef(binaryPath, baselineConfig);
@@ -265,8 +271,8 @@ async function run(): Promise<void> {
                 await createComment("No schema changes detected.");
             }
 
-            if (fs.existsSync(baselineSchemaFile)) {
-                fs.unlinkSync(baselineSchemaFile);
+            if (!baselineSchemaFile && fs.existsSync(actualBaselineFile)) {
+                fs.unlinkSync(actualBaselineFile);
             }
         } else {
             core.info("Applying with current schema");
