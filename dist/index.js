@@ -126,8 +126,10 @@ function getCommandConfig(command) {
             config.args.push("-h", host, "-P", port);
             if (user)
                 config.args.push("-u", user);
-            if (password)
+            // Only add -p flag if password is not empty
+            if (password && password.trim() !== "") {
                 config.args.push(`-p${password}`);
+            }
             if (database)
                 config.args.push(database);
             break;
@@ -147,8 +149,10 @@ function getCommandConfig(command) {
             config.args.push("-h", host, "-P", port);
             if (user)
                 config.args.push("-U", user);
-            if (password)
+            // Only add -p flag if password is not empty
+            if (password && password.trim() !== "") {
                 config.args.push(`-p${password}`);
+            }
             if (database)
                 config.args.push(database);
             break;
