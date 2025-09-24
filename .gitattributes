@@ -1,2 +1,2 @@
-dist/* binary
+dist/* binary -diff linguist-generated
 
