@@ -172,33 +172,41 @@ You can use sqldef configuration files for additional settings:
     # ... database connection parameters
 ```
 
-### Using with Docker Compose
+### Using with GitHub Actions Services
 
-For complex database setups, combine with Docker Compose:
+For database setups, use GitHub Actions services for better integration:
 
 ```yaml
-steps:
-  - uses: actions/checkout@v5
-    with:
-      fetch-depth: 0
+jobs:
+  preview-schema:
+    runs-on: ubuntu-latest
 
-  - name: Start database services
-    run: docker-compose up -d
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: testdb
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
 
-  - name: Wait for database
-    run: |
-      for i in {1..30}; do
-        if docker exec postgres pg_isready; then
-          break
-        fi
-        sleep 2
-      done
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
-  - uses: gfx/sqldef-preview-action@v1
-    with:
-      command: psqldef
-      schema-file: schema/database.sql
-      # ... connection parameters
+      - uses: gfx/sqldef-preview-action@v1
+        with:
+          command: psqldef
+          schema-file: schema/database.sql
+          pg-user: postgres
+          pg-password: postgres
+          pg-database: testdb
 ```
 
 ## Example PR Comment
