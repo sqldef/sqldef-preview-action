@@ -141,8 +141,7 @@ async function getSchemaFromBranch(branch: string, schemaFile: string): Promise<
     // Create empty file first to ensure it exists
     fs.writeFileSync(tempFile, "");
 
-    let exitCode = 0;
-    await exec.exec("git", ["show", `${branch}:${schemaFile}`], {
+    const exitCode = await exec.exec("git", ["show", `${branch}:${schemaFile}`], {
         silent: true,
         ignoreReturnCode: true,
         listeners: {
@@ -154,8 +153,6 @@ async function getSchemaFromBranch(branch: string, schemaFile: string): Promise<
                 core.debug(`git show stderr: ${data.toString()}`);
             },
         },
-    }).catch((error) => {
-        exitCode = error.exitCode || 1;
     });
 
     if (exitCode !== 0) {
