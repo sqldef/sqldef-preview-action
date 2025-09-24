@@ -97,6 +97,7 @@ function getCommandConfig(command) {
     const config = {
         command: "",
         args: [],
+        sanitizedArgs: [],
         env: {},
     };
     const schemaFile = core.getInput("schema-file", { required: true });
@@ -115,6 +116,7 @@ function getCommandConfig(command) {
                 config.args.push(database);
             if (password)
                 config.env = { ...config.env, PGPASSWORD: password };
+            config.sanitizedArgs = [...config.args];
             break;
         }
         case "mysqldef": {
@@ -133,12 +135,14 @@ function getCommandConfig(command) {
             }
             if (database)
                 config.args.push(database);
+            config.sanitizedArgs = [...config.args];
             break;
         }
         case "sqlite3def": {
             const database = core.getInput("sqlite-database");
             if (database)
                 config.args.push(database);
+            config.sanitizedArgs = [...config.args];
             break;
         }
         case "mssqldef": {
@@ -153,10 +157,11 @@ function getCommandConfig(command) {
                 config.args.push("-U", user);
             // Add -P flag for password if provided
             if (password && password.trim() !== "") {
-                config.args.push(`-P${password}`);
+                config.args.push("-P", password);
             }
             if (database)
                 config.args.push(database);
+            config.sanitizedArgs = config.args.map((arg) => (arg === password ? "***" : arg));
             break;
         }
         default:
@@ -197,24 +202,8 @@ async function getSchemaFromBranch(branch, schemaFile) {
 async function runSqldef(binaryPath, config) {
     let output = "";
     let stderr = "";
-    const args = [...config.args];
-    const execEnv = {};
-    for (const [key, value] of Object.entries(process.env)) {
-        if (value !== undefined) {
-            execEnv[key] = value;
-        }
-    }
-    Object.assign(execEnv, config.env);
-    const sanitizedArgs = args.map((arg, index) => {
-        // Hide password value for security
-        if (index > 0 && args[index - 1] === "-P") {
-            return "***";
-        }
-        return arg;
-    });
-    core.debug(`Running command: ${binaryPath} ${sanitizedArgs.join(" ")}`);
-    const exitCode = await exec.exec(binaryPath, args, {
-        env: execEnv,
+    core.debug(`Running command: ${binaryPath} ${config.sanitizedArgs.join(" ")}`);
+    const exitCode = await exec.exec(binaryPath, config.args, {
         silent: false,
         ignoreReturnCode: true,
         listeners: {
