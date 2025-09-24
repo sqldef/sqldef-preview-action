@@ -44,7 +44,15 @@ async function downloadSqldef(command: string, version: string): Promise<string>
             throw new Error(`Unsupported architecture: ${arch}`);
     }
 
-    const downloadUrl = `https://github.com/sqldef/sqldef/releases/download/${version}/${command}_${osName}_${archName}.tar.gz`;
+    // Support "latest" version with special URL pattern
+    // When version is "latest", use /releases/latest/download/ path
+    // Otherwise use the standard /releases/download/{version}/ path
+    let downloadUrl: string;
+    if (version === "latest") {
+        downloadUrl = `https://github.com/sqldef/sqldef/releases/latest/download/${command}_${osName}_${archName}.tar.gz`;
+    } else {
+        downloadUrl = `https://github.com/sqldef/sqldef/releases/download/${version}/${command}_${osName}_${archName}.tar.gz`;
+    }
 
     core.info(`Downloading ${command} ${version} from ${downloadUrl}`);
 

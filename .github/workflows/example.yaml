@@ -40,7 +40,7 @@ jobs:
         uses: ./
         with:
           command: psqldef
-          version: v3.0.0
+          version: latest
           baseline-schema-file: examples/psqldef-current.sql
           schema-file: examples/psqldef-desired.sql
           pg-user: postgres
@@ -76,7 +76,7 @@ jobs:
         uses: ./
         with:
           command: mysqldef
-          version: v3.0.0
+          version: latest
           baseline-schema-file: examples/mysqldef-current.sql
           schema-file: examples/mysqldef-desired.sql
           mysql-user: root
@@ -98,7 +98,7 @@ jobs:
         uses: ./
         with:
           command: sqlite3def
-          version: v3.0.0
+          version: latest
           baseline-schema-file: examples/sqlite3def-current.sql
           schema-file: examples/sqlite3def-desired.sql
           sqlite-database: test.db
@@ -142,7 +142,7 @@ jobs:
         uses: ./
         with:
           command: mssqldef
-          version: v3.0.0
+          version: latest
           baseline-schema-file: examples/mssqldef-current.sql
           schema-file: examples/mssqldef-desired.sql
           mssql-user: sa
