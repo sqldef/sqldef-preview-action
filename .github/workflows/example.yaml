@@ -102,22 +102,28 @@ jobs:
   mssql-preview:
     runs-on: ubuntu-latest
 
+    services:
+      mssql:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: Y
+          SA_PASSWORD: Passw0rd
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -S localhost -U SA -P Passw0rd -Q 'SELECT 1' -C || /opt/mssql-tools/bin/sqlcmd -S localhost -U SA -P Passw0rd -Q 'SELECT 1'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+          --health-start-period 20s
+        ports:
+          - 1433:1433
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
-      - name: Start MSSQL
-        run: |
-          docker run -d \
-            --name mssql \
-            -e "ACCEPT_EULA=Y" \
-            -e "SA_PASSWORD=Passw0rd" \
-            -p 1433:1433 \
-            mcr.microsoft.com/mssql/server:2022-latest
-
-      - name: Wait for MSSQL
+      - name: Setup MSSQL database
         run: |
           # Install sqlcmd tools
           sudo apt-get update && sudo apt-get install -y curl gnupg
@@ -125,16 +131,6 @@ jobs:
           curl https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/prod.list | sudo tee /etc/apt/sources.list.d/mssql-release.list
           sudo apt-get update
           sudo ACCEPT_EULA=Y apt-get install -y mssql-tools18
-
-          # Wait for MSSQL to be ready
-          for i in {1..60}; do
-            if /opt/mssql-tools18/bin/sqlcmd -S localhost -U SA -P "Passw0rd" -Q "SELECT 1" -C >/dev/null 2>&1; then
-              echo "MSSQL is ready"
-              break
-            fi
-            echo "Waiting for MSSQL..."
-            sleep 3
-          done
 
           # Create the test database
           /opt/mssql-tools18/bin/sqlcmd -S localhost -U SA -P "Passw0rd" -Q "CREATE DATABASE testdb;" -C
@@ -151,7 +147,3 @@ jobs:
           mssql-host: localhost
           mssql-port: 1433
           mssql-database: testdb
-
-      - name: Stop MSSQL
-        if: always()
-        run: docker stop mssql && docker rm mssql
