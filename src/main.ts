@@ -9,8 +9,7 @@ import * as os from "os";
 interface CommandConfig {
     command: string;
     args: string[];
-    sanitizedArgs: string[]; // args with password hidden
-    env?: Record<string, string>;
+    env: Record<string, string>;
 }
 
 async function downloadSqldef(command: string, version: string): Promise<string> {
@@ -72,7 +71,6 @@ function getCommandConfig(command: string): CommandConfig {
     const config: CommandConfig = {
         command: "",
         args: [],
-        sanitizedArgs: [],
         env: {},
     };
 
@@ -89,10 +87,11 @@ function getCommandConfig(command: string): CommandConfig {
 
             config.args.push("-h", host, "-p", port);
             if (user) config.args.push("-U", user);
+            if (password) {
+                config.env.PGPASSWORD = password;
+                core.setSecret(password);
+            }
             if (database) config.args.push(database);
-            if (password) config.env = { ...config.env, PGPASSWORD: password };
-
-            config.sanitizedArgs = [...config.args];
             break;
         }
         case "mysqldef": {
@@ -106,17 +105,16 @@ function getCommandConfig(command: string): CommandConfig {
             if (user) config.args.push("-u", user);
             // Use environment variable for password (works with empty passwords)
             // This avoids command line parsing issues with -p flag
-            if (password != null) {
-                config.env = { ...config.env, MYSQL_PWD: password };
+            if (password) {
+                config.env.MYSQL_PWD = password;
+                core.setSecret(password);
             }
             if (database) config.args.push(database);
-            config.sanitizedArgs = [...config.args];
             break;
         }
         case "sqlite3def": {
             const database = core.getInput("sqlite-database");
             if (database) config.args.push(database);
-            config.sanitizedArgs = [...config.args];
             break;
         }
         case "mssqldef": {
@@ -132,9 +130,9 @@ function getCommandConfig(command: string): CommandConfig {
             // Add -P flag for password if provided
             if (password) {
                 config.args.push(`-P${password}`);
+                core.setSecret(password);
             }
             if (database) config.args.push(database);
-            config.sanitizedArgs = config.args.map((arg) => (arg === `-P${password}` ? "-P***" : arg));
             break;
         }
         default:
@@ -192,8 +190,6 @@ async function runSqldef(binaryPath: string, config: CommandConfig): Promise<str
         }
     }
     Object.assign(execEnv, config.env);
-
-    core.debug(`Running command: ${binaryPath} ${config.sanitizedArgs.join(" ")}`);
 
     const exitCode = await exec.exec(binaryPath, config.args, {
         env: execEnv,
