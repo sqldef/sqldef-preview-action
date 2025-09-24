@@ -376,14 +376,14 @@ async function run(): Promise<void> {
             if (output.trim()) {
                 core.info("Schema changes detected:");
                 core.info(output);
-                // Only create comment for actual PR events
-                if (context.eventName === "pull_request" && !baselineSchemaFile) {
+                // Create comment for PR events
+                if (context.eventName === "pull_request") {
                     await createComment(output, command, schemaFile);
                 }
             } else {
                 core.info("No schema changes detected");
-                // Only create comment for actual PR events
-                if (context.eventName === "pull_request" && !baselineSchemaFile) {
+                // Create comment for PR events
+                if (context.eventName === "pull_request") {
                     await createComment("No schema changes detected.", command, schemaFile);
                 }
             }
