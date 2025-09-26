@@ -128,6 +128,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Create MSSQL database
+        run: |
+          docker exec $(docker ps -q -f "ancestor=mcr.microsoft.com/mssql/server:2022-latest") \
+            /opt/mssql-tools18/bin/sqlcmd -S localhost -U SA -P "Passw0rd" -Q "CREATE DATABASE testdb;" -C
+
       - name: Preview MSSQL schema changes
         uses: ./
         with:
