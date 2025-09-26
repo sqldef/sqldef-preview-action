@@ -128,18 +128,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup MSSQL database
-        run: |
-          # Install sqlcmd tools
-          sudo apt-get update && sudo apt-get install -y curl gnupg
-          curl https://packages.microsoft.com/keys/microsoft.asc | sudo tee /etc/apt/trusted.gpg.d/microsoft.asc
-          curl https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/prod.list | sudo tee /etc/apt/sources.list.d/mssql-release.list
-          sudo apt-get update
-          sudo ACCEPT_EULA=Y apt-get install -y mssql-tools18
-
-          # Create the test database
-          /opt/mssql-tools18/bin/sqlcmd -S localhost -U SA -P "Passw0rd" -Q "CREATE DATABASE testdb;" -C
-
       - name: Preview MSSQL schema changes
         uses: ./
         with:
