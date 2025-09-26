@@ -180,7 +180,7 @@ jobs:
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `version` | Version of sqldef to use (e.g., `v3.0.1` or `latest`) | `v3.0.1` |
+| `version` | Version of sqldef to use (`latest` for the latest version) | `v3.0.3` |
 | `config-file` | Path to sqldef config file | - |
 
 ### PostgreSQL Parameters
