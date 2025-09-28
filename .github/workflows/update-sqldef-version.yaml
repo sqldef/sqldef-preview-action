@@ -84,12 +84,20 @@ jobs:
 
           echo "branch=$BRANCH_NAME" >> $GITHUB_ENV
 
+      - name: Install yq
+        run: |
+          curl -sL -o /tmp/yq https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64
+          sudo install -m 755 /tmp/yq /usr/local/bin/yq
+          yq --version
+        env:
+          YQ_VERSION: v4.47.2
+
       - name: Update version in action.yml
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           # Store current version for comparison
-          CURRENT_VERSION=$(grep -A 1 "description: 'Version of sqldef to use'" action.yml | grep "default:" | sed "s/.*default: '\(v[0-9.]*[^']*\)'.*/\1/")
+          CURRENT_VERSION=$(yq '.inputs.version.default' action.yml)
 
           if [ "$CURRENT_VERSION" = "$VERSION" ]; then
             echo "Version is already set to $VERSION, no changes needed"
@@ -97,12 +105,9 @@ jobs:
           else
             echo "Updating from $CURRENT_VERSION to $VERSION"
 
-            # Update the default version in action.yml (more precise sed pattern)
-            sed -i "s/\(default: '\)v[0-9]\+\.[0-9]\+\.[0-9]\+\(-[a-zA-Z0-9._-]\+\)\?\('/\1$VERSION\3/" action.yml
+            # Update the default version in action.yml using yq
+            yq -i '.inputs.version.default = strenv(VERSION)' action.yml
 
-            # Verify the change
-            echo "Updated action.yml:"
-            grep -A 1 "description: 'Version of sqldef to use'" action.yml
             echo "changed=true" >> $GITHUB_ENV
           fi
 
