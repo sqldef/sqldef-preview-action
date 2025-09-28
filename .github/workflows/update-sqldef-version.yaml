@@ -19,18 +19,15 @@ jobs:
   update-version:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v5
       - name: Generate GitHub App token
         id: app-token
         uses: actions/create-github-app-token@v2
         with:
-          app-id: ${{ secrets.APP_ID }}
-          private-key: ${{ secrets.APP_PRIVATE_KEY }}
-
-      - name: Checkout repository
-        uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-          token: ${{ steps.app-token.outputs.token }}
+          app-id: ${{ secrets.GITHUB_APP_ID }}
+          private-key: ${{ secrets.GITHUB_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
 
       - name: Determine and validate version
         id: version
