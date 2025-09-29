@@ -1,0 +1,192 @@
+name: Update SQLDef Version
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'New SQLDef version (e.g., v3.0.2)'
+        required: true
+        type: string
+  repository_dispatch:
+    types: [sqldef-release]
+    # Expected payload: { "version": "v3.0.2" }
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Determine and validate version
+        id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+          PAYLOAD_VERSION: ${{ github.event.client_payload.version }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          # Use input version if triggered manually, otherwise use the payload version
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            VERSION="$INPUT_VERSION"
+          else
+            VERSION="$PAYLOAD_VERSION"
+          fi
+
+          # Check if version is provided
+          if [ -z "$VERSION" ]; then
+            echo "Error: No version provided"
+            exit 1
+          fi
+
+          # Ensure version starts with 'v'
+          if [[ ! "$VERSION" =~ ^v ]]; then
+            VERSION="v$VERSION"
+          fi
+
+          # Validate version format (v1.2.3 with optional pre-release/build metadata)
+          if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9._-]+)?$ ]]; then
+            echo "Error: Invalid version format: $VERSION"
+            echo "Expected format: vX.Y.Z or vX.Y.Z-suffix (e.g., v3.0.1, v3.0.1-beta, v3.0.1-rc1)"
+            exit 1
+          fi
+
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Validated version: $VERSION"
+
+      - name: Create or switch to branch
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          BRANCH_NAME="update-sqldef-version-$VERSION"
+
+          # Check if branch exists locally or remotely
+          if git show-ref --verify --quiet "refs/heads/$BRANCH_NAME"; then
+            echo "Branch exists locally, switching to it"
+            git checkout "$BRANCH_NAME"
+          elif git ls-remote --exit-code --heads origin "$BRANCH_NAME"; then
+            echo "Branch exists remotely, checking it out"
+            git checkout -b "$BRANCH_NAME" "origin/$BRANCH_NAME"
+          else
+            echo "Creating new branch"
+            git checkout -b "$BRANCH_NAME"
+          fi
+
+          echo "branch=$BRANCH_NAME" >> $GITHUB_ENV
+
+      - name: Install yq
+        run: |
+          curl -sL -o /tmp/yq https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64
+          sudo install -m 755 /tmp/yq /usr/local/bin/yq
+          yq --version
+        env:
+          YQ_VERSION: v4.47.2
+
+      - name: Update version in action.yml
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          # Store current version for comparison
+          CURRENT_VERSION=$(yq '.inputs.version.default' action.yml)
+
+          if [ "$CURRENT_VERSION" = "$VERSION" ]; then
+            echo "Version is already set to $VERSION, no changes needed"
+            echo "changed=false" >> $GITHUB_ENV
+          else
+            echo "Updating from $CURRENT_VERSION to $VERSION"
+
+            # Update the default version in action.yml using yq
+            yq -i '.inputs.version.default = strenv(VERSION)' action.yml
+
+            echo "changed=true" >> $GITHUB_ENV
+          fi
+
+      - name: Configure Git
+        if: env.changed == 'true'
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+
+      - name: Commit changes
+        if: env.changed == 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          git add action.yml
+
+          # Check if there are changes to commit
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            echo "has_changes=false" >> $GITHUB_ENV
+          else
+            git commit -m "chore: update SQLDef version to $VERSION"
+            echo "has_changes=true" >> $GITHUB_ENV
+          fi
+
+      - name: Push branch
+        if: env.changed == 'true' && env.has_changes == 'true'
+        env:
+          BRANCH: ${{ env.branch }}
+        run: |
+          git push origin "$BRANCH"
+
+      - name: Create or update Pull Request
+        if: env.changed == 'true' && env.has_changes == 'true'
+        uses: actions/github-script@v8
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          BRANCH: ${{ env.branch }}
+        with:
+          github-token: ${{ steps.app-token.outputs.token }}
+          script: |
+            const version = process.env.VERSION;
+            const branch = process.env.BRANCH;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            // Check if PR already exists
+            const { data: existingPRs } = await github.rest.pulls.list({
+              owner,
+              repo,
+              head: `${owner}:${branch}`,
+              state: 'open'
+            });
+
+            if (existingPRs.length > 0) {
+              const pr = existingPRs[0];
+              console.log(`Pull request already exists: #${pr.number}`);
+              console.log(`URL: ${pr.html_url}`);
+
+              // Update PR body if needed
+              await github.rest.pulls.update({
+                owner: owner,
+                repo: repo,
+                pull_number: pr.number,
+                body: `## Description\n\nThis PR automatically updates the default SQLDef version to \`${version}\`.\n\n### Changes\n- Updated default version in \`action.yml\` to \`${version}\`\n\n### Triggered by\n${context.eventName === 'workflow_dispatch' ? '- Manual workflow dispatch' : '- SQLDef release workflow'}\n\n---\n*This PR was automatically created by the update-version workflow.*`
+              });
+
+              console.log('Pull request description updated');
+            } else {
+              // Create new PR
+              const { data: pr } = await github.rest.pulls.create({
+                owner: owner,
+                repo: repo,
+                title: `chore: update SQLDef version to ${version}`,
+                body: `## Description\n\nThis PR automatically updates the default SQLDef version to \`${version}\`.\n\n### Changes\n- Updated default version in \`action.yml\` to \`${version}\`\n\n### Triggered by\n${context.eventName === 'workflow_dispatch' ? '- Manual workflow dispatch' : '- SQLDef release workflow'}\n\n---\n*This PR was automatically created by the update-version workflow.*`,
+                head: branch,
+                base: 'main',
+                draft: false
+              });
+
+              console.log(`Pull request created: #${pr.html_url}`);
+            }
