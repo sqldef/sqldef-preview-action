@@ -129,7 +129,7 @@ jobs:
             echo "No changes to commit"
             echo "has_changes=false" >> $GITHUB_ENV
           else
-            git commit -m "chore: update SQLDef version to $VERSION"
+            git commit -m "Update sqldef version to $VERSION"
             echo "has_changes=true" >> $GITHUB_ENV
           fi
 
@@ -181,7 +181,7 @@ jobs:
               const { data: pr } = await github.rest.pulls.create({
                 owner: owner,
                 repo: repo,
-                title: `chore: update SQLDef version to ${version}`,
+                title: `Update sqldef version to ${version}`,
                 body: `## Description\n\nThis PR automatically updates the default SQLDef version to \`${version}\`.\n\n### Changes\n- Updated default version in \`action.yml\` to \`${version}\`\n\n### Triggered by\n${context.eventName === 'workflow_dispatch' ? '- Manual workflow dispatch' : '- SQLDef release workflow'}\n\n---\n*This PR was automatically created by the update-version workflow.*`,
                 head: branch,
                 base: 'main',
