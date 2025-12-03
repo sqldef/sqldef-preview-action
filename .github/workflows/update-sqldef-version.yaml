@@ -188,5 +188,24 @@ jobs:
                 draft: false
               });
 
-              console.log(`Pull request created: #${pr.html_url}`);
+              console.log(`Pull request created: ${pr.html_url}`);
+
+              // Enable auto-merge
+              await github.graphql(`
+                mutation($pullRequestId: ID!) {
+                  enablePullRequestAutoMerge(input: {
+                    pullRequestId: $pullRequestId,
+                    mergeMethod: MERGE
+                  }) {
+                    pullRequest {
+                      autoMergeRequest {
+                        enabledAt
+                      }
+                    }
+                  }
+                }
+              `, {
+                pullRequestId: pr.node_id
+              });
+              console.log('Auto-merge enabled');
             }
