@@ -17,7 +17,7 @@ inputs:
   version:
     description: 'Version of sqldef to use'
     required: false
-    default: 'v3.7.8'
+    default: 'v3.7.9'
   config-file:
     description: 'Path to sqldef config file'
     required: false
