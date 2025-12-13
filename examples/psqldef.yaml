@@ -1,2 +1,3 @@
+legacy_ignore_quotes: false
 enable_drop: true
 create_index_concurrently: true
