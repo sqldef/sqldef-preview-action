@@ -1,3 +1,5 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-action.json
+
 name: 'SQLDef Preview'
 description: 'Preview how sqldef migration performs in pull requests'
 author: 'The sqldef team'
@@ -17,7 +19,7 @@ inputs:
   version:
     description: 'Version of sqldef to use'
     required: false
-    default: 'v3.0.1'
+    default: 'v3.8.7'
   config-file:
     description: 'Path to sqldef config file'
     required: false
@@ -79,12 +81,10 @@ inputs:
   mssql-database:
     description: 'SQL Server database'
     required: false
-
   # GitHub token for PR comments
   github-token:
     description: 'GitHub token for commenting on pull requests'
     required: true
-
 runs:
   using: 'node24'
   main: 'dist/index.js'
