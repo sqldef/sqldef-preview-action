@@ -179,7 +179,7 @@ async function getSchemaFromBranch(branch: string, schemaFile: string): Promise<
     return tempFile;
 }
 
-async function runSqldef(binaryPath: string, config: CommandConfig): Promise<string> {
+async function runSqldef(sqldefPath: string, config: CommandConfig): Promise<string> {
     let output = "";
     let stderr = "";
 
@@ -191,7 +191,8 @@ async function runSqldef(binaryPath: string, config: CommandConfig): Promise<str
     }
     Object.assign(execEnv, config.env);
 
-    const exitCode = await exec.exec(binaryPath, config.args, {
+    // apply the schema to the database
+    const exitCode = await exec.exec(sqldefPath, ["--apply", ...config.args], {
         env: execEnv,
         silent: false,
         ignoreReturnCode: true,
