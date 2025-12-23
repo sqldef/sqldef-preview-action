@@ -1,6 +1,6 @@
 # SQLDef Preview Action
 
-[![CI](https://github.com/gfx/sqldef-preview-action/actions/workflows/ci.yaml/badge.svg)](https://github.com/gfx/sqldef-preview-action/actions/workflows/ci.yaml)
+[![CI](https://github.com/sqldef/sqldef-preview-action/actions/workflows/ci.yaml/badge.svg)](https://github.com/sqldef/sqldef-preview-action/actions/workflows/ci.yaml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
 A GitHub Action that previews SQL schema migrations of [sqldef](https://github.com/sqldef/sqldef) on pull requests. It automatically generates a preview of schema changes between your base branch and PR branch, posting the migration DDL as a comment on your pull request.
@@ -58,11 +58,11 @@ jobs:
           - 5432:5432
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0  # Required to fetch base branch
 
-      - uses: gfx/sqldef-preview-action@v1
+      - uses: sqldef/sqldef-preview-action@v1
         with:
           command: psqldef
           schema-file: schema/database.sql
@@ -94,11 +94,11 @@ jobs:
           - 3306:3306
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      - uses: gfx/sqldef-preview-action@v1
+      - uses: sqldef/sqldef-preview-action@v1
         with:
           command: mysqldef
           schema-file: schema/database.sql
@@ -112,7 +112,7 @@ jobs:
 ### SQLite Example
 
 ```yaml
-- uses: gfx/sqldef-preview-action@v1
+- uses: sqldef/sqldef-preview-action@v1
   with:
     command: sqlite3def
     schema-file: schema/database.sql
@@ -143,7 +143,7 @@ jobs:
           - 1433:1433
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -156,7 +156,7 @@ jobs:
           sudo ACCEPT_EULA=Y apt-get install -y mssql-tools18
           /opt/mssql-tools18/bin/sqlcmd -S localhost -U SA -P "YourStrong@Passw0rd" -Q "CREATE DATABASE testdb;" -C
 
-      - uses: gfx/sqldef-preview-action@v1
+      - uses: sqldef/sqldef-preview-action@v1
         with:
           command: mssqldef
           schema-file: schema/database.sql
