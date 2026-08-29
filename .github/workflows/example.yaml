@@ -38,8 +38,7 @@ jobs:
           command: psqldef
           version: latest
           config-file: examples/psqldef.yaml
-          baseline-schema-file: examples/psqldef-current.sql
-          schema-file: examples/psqldef-desired.sql
+          schema-file: examples/psqldef-current.sql
           pg-user: postgres
           pg-password: postgres
           pg-host: localhost
@@ -76,8 +75,7 @@ jobs:
           command: mysqldef
           version: latest
           config-file: examples/mysqldef.yaml
-          baseline-schema-file: examples/mysqldef-current.sql
-          schema-file: examples/mysqldef-desired.sql
+          schema-file: examples/mysqldef-current.sql
           mysql-user: root
           mysql-password: testpass
           mysql-host: 127.0.0.1
@@ -100,8 +98,7 @@ jobs:
           command: sqlite3def
           version: latest
           config-file: examples/sqlite3def.yaml
-          baseline-schema-file: examples/sqlite3def-current.sql
-          schema-file: examples/sqlite3def-desired.sql
+          schema-file: examples/sqlite3def-current.sql
           sqlite-database: test.db
           github-token: ${{ github.token }}
 
@@ -139,8 +136,7 @@ jobs:
           command: mssqldef
           version: latest
           config-file: examples/mssql.yaml
-          baseline-schema-file: examples/mssqldef-current.sql
-          schema-file: examples/mssqldef-desired.sql
+          schema-file: examples/mssqldef-current.sql
           mssql-user: SA
           mssql-password: Passw0rd
           mssql-host: localhost
